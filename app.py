@@ -16,13 +16,10 @@ st.markdown("""
 # 2. 데이터 로딩 및 전처리 함수 (헤더 2줄 처리)
 @st.cache_data
 def load_data(file_path):
-    # 멀티 인덱스(헤더가 2줄)로 읽어오기
     df = pd.read_excel(file_path, sheet_name='직무표', header=[0, 1])
     
-    # 두 줄의 헤더를 하나로 병합 (Unnamed 제거)
     df.columns = ['_'.join([str(c) for c in col if "Unnamed" not in str(c)]).strip('_').replace('\n', '') for col in df.columns]
     
-    # 컬럼명 단순화 매핑
     df = df.rename(columns={
         '직무(Job)': '직무명',
         '책무(Duty)': '책무명',
@@ -39,7 +36,6 @@ def load_data(file_path):
     df['책무명'] = df['책무명'].ffill()
     df['수행시간'] = pd.to_numeric(df['수행시간'], errors='coerce')
     
-    # 중요도, 난이도, 숙련도 숫자형 변환
     for col in ['중요도', '난이도', '숙련도']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -54,15 +50,12 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     df_2025 = load_data(file_2025)
     df_2026 = load_data(file_2026)
     
-    # --- 팀리더 시간 분리 계산 ---
     leader_2025 = df_2025[df_2025['직무명'] == '팀리더']['수행시간'].sum()
     leader_2026 = df_2026[df_2026['직무명'] == '팀리더']['수행시간'].sum()
     
-    # 팀원(실무진) 순수 과업 시간 계산
     staff_2025_sum = df_2025[df_2025['직무명'] != '팀리더']['수행시간'].sum()
     staff_2026_sum = df_2026[df_2026['직무명'] != '팀리더']['수행시간'].sum()
     
-    # 1인당 표준근무가능시간 기준 필요 인원 산출 (팀원 기준)
     std_hours = 1826.7
     req_ppl_2025 = staff_2025_sum / std_hours
     req_ppl_2026 = staff_2026_sum / std_hours
@@ -147,23 +140,22 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.write("+ 업무(영업)용 마케팅 (+3,194h)")
         st.write("  *(업무/영업용 일원화 신설)*")
 
-    # 향후 집중 방향 결론 
+    # (수정됨) 결론을 한 줄이 아닌 개조식(리스트형)으로 심플하게 정리
     st.info(f"""
     🚀 **[Conclusion & Action Plan]**
-    현재 마케팅팀은 **필요 인원({req_ppl_2026:.1f}명) 대비 실제 인원(10명)** 이라는 극도로 타이트한 환경 속에서 일하고 있습니다. 
-    이를 극복하기 위해 기존에 막대한 시간이 소요되던 분석 및 관리 업무(공동주택/연료전지 등)를 **데이터 분석 기반 파이썬 웹앱으로 자동화**하여 획기적으로 감축(Reduce) 시켰습니다.
-    
-    이렇게 자동화를 통해 시스템적으로 방어한 여력은, 대성에너지의 핵심 이익 분야인 **'통합 대규모 영업(업무/영업용 마케팅 신설)'**과 **'마케팅전략기획(영업활성화)'**에 집중적으로 투입(Raise/Create)하여 적은 인원으로도 최대의 비즈니스 임팩트를 창출해 나갈 것입니다.
+    * **현황:** 현재 마케팅팀은 타이트한 실무 인원(실제 10명 vs 필요 {req_ppl_2026:.1f}명)으로 운영 중입니다.
+    * **극복 전략:** 방대한 분석/관리 업무를 데이터 분석 기반 파이썬 웹앱으로 자동화하여 극단적인 효율(Reduce)을 달성했습니다.
+    * **향후 집중 방향:** 시스템으로 방어한 여력을 회사의 핵심 이익 분야인 **'통합 대규모 영업(업무/영업용 신설)'**과 **'마케팅전략기획'**에 집중 투입하여 비즈니스 임팩트를 극대화하겠습니다.
     """)
 
     st.divider()
 
     # =====================================================================
-    # 분석 3: 책무별 업무량 분석 표 및 비교 차트 (신규 추가)
+    # 분석 3: 책무별 업무량 분석 표 및 비교 차트
     # =====================================================================
     st.subheader("📊 3. 책무별 업무량 정밀 분석 및 연도별 비교")
     
-    st.markdown("현재 2026년 기준 직무/책무별 세부 수준(중요도, 난이도, 숙련도, 등급)과 업무량 구성비를 확인하실 수 있습니다.")
+    st.markdown("2025년 대비 2026년의 수행시간 증감 내역과, 현재(26년) 기준 직무/책무별 세부 수준을 확인하실 수 있습니다.")
     
     # 2026년 책무별 분석표 생성
     agg_26 = df_2026.groupby(['직무명', '책무명']).agg(
@@ -174,6 +166,12 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         숙련도=('숙련도', 'mean')
     ).reset_index()
 
+    # (수정됨) 25년/26년 증감 데이터 병합을 위한 전처리
+    comp_df = diff_df.reset_index()
+    # agg_26 데이터프레임에 25년 데이터와 증감 데이터 합치기
+    agg_26 = pd.merge(agg_26, comp_df, on='책무명', how='left')
+    agg_26 = agg_26.rename(columns={'2025년(h)': '25년 수행시간', '2026년(h)': '26년 수행시간'})
+    
     total_hours_26 = agg_26['연간수행시간'].sum()
     agg_26['업무량 구성비(%)'] = (agg_26['연간수행시간'] / total_hours_26 * 100).round(1)
 
@@ -184,46 +182,50 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     grade_26 = df_2026.groupby(['직무명', '책무명'])['업무등급'].agg(get_mode).reset_index()
     agg_26 = pd.merge(agg_26, grade_26, on=['직무명', '책무명'], how='left')
 
-    # 소수점 첫째자리 반올림
     agg_26['중요도'] = agg_26['중요도'].round(1)
     agg_26['난이도'] = agg_26['난이도'].round(1)
     agg_26['숙련도'] = agg_26['숙련도'].round(1)
 
-    # 컬럼 순서 정렬 및 출력
-    cols = ['직무명', '책무명', '과업수', '연간수행시간', '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
-    agg_26 = agg_26[cols].sort_values(['직무명', '연간수행시간'], ascending=[True, False])
+    # (수정됨) 컬럼 순서 재배치 (25년, 26년, 증감 컬럼 추가)
+    cols = ['직무명', '책무명', '과업수', '25년 수행시간', '26년 수행시간', '증감(h)', '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
+    agg_26 = agg_26[cols].sort_values(['직무명', '26년 수행시간'], ascending=[True, False])
     
-    # 데이터프레임 시각화 (인덱스 숨김)
+    # 색상 적용 함수 (증감)
+    def color_negative_red(val):
+        if pd.isna(val): return ''
+        color = 'red' if val < 0 else 'blue' if val > 0 else 'black'
+        return f'color: {color}'
+
+    # 데이터프레임 시각화
     st.dataframe(agg_26.style.format({
-        '연간수행시간': '{:,.1f}',
+        '25년 수행시간': '{:,.0f}', '26년 수행시간': '{:,.0f}', '증감(h)': '{:,.0f}',
         '중요도': '{:.1f}', '난이도': '{:.1f}', '숙련도': '{:.1f}'
-    }), hide_index=True, use_container_width=True)
+    }).applymap(color_negative_red, subset=['증감(h)']), hide_index=True, use_container_width=True)
 
     st.markdown("<br>**[ 2025년 vs 2026년 책무별 수행시간 변동 비교 ]**", unsafe_allow_html=True)
     
-    # 두 연도 비교를 위한 데이터프레임 병합
-    comp_df = diff_df.reset_index()
-    
     # 증감이 0이 아닌 유의미한 항목만 필터링하여 시각화
-    comp_df = comp_df[(comp_df['2025년(h)'] > 0) | (comp_df['2026년(h)'] > 0)]
+    plot_df = comp_df[(comp_df['2025년(h)'] > 0) | (comp_df['2026년(h)'] > 0)]
+    # 세로형 그래프를 위해 값이 큰 순서대로 내림차순 정렬
+    plot_df = plot_df.sort_values(by='2026년(h)', ascending=False)
     
-    # Plotly Grouped Bar Chart 작성
+    # (수정됨) Plotly Grouped Bar Chart 작성 (세로형으로 변경)
     fig_comp = go.Figure()
     fig_comp.add_trace(go.Bar(
-        x=comp_df['2025년(h)'], y=comp_df['책무명'],
-        name='2025년', orientation='h', marker_color='#1f77b4'
+        x=plot_df['책무명'], y=plot_df['2025년(h)'],
+        name='2025년', marker_color='#1f77b4'
     ))
     fig_comp.add_trace(go.Bar(
-        x=comp_df['2026년(h)'], y=comp_df['책무명'],
-        name='2026년', orientation='h', marker_color='#00A699'
+        x=plot_df['책무명'], y=plot_df['2026년(h)'],
+        name='2026년', marker_color='#00A699'
     ))
 
     fig_comp.update_layout(
         barmode='group',
-        height=600,
-        margin=dict(l=150), # 책무명 라벨이 길 경우 잘리지 않도록 좌측 여백 확보
-        xaxis_title="연간 과업 수행시간 (Hours)",
-        yaxis={'categoryorder':'total ascending'} # 전체 합계가 높은 순서대로 정렬
+        height=500,
+        xaxis_title="책무명",
+        yaxis_title="연간 과업 수행시간 (Hours)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1) # 레전드를 위로 이동
     )
     st.plotly_chart(fig_comp, use_container_width=True)
 
