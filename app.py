@@ -2,130 +2,127 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import os
 
-# 페이지 기본 설정
-st.set_page_config(page_title="마케팅팀 직무분석", layout="wide")
+# 1. 페이지 설정
+st.set_page_config(page_title="직무분석 마케팅팀", layout="wide")
 
-st.title("📊 마케팅팀 직무분석")
+st.title("📊 직무분석 마케팅팀 (2025 vs 2026)")
 st.markdown("""
 **작성자:** 최한엽 (Han)  
-본 대시보드는 2025년 대비 2026년 마케팅팀의 인원 변동(-2명) 및 조직 개편에 따른 **업무 효율화 성과**를 시각화한 자료입니다.
+2025년 대비 2026년 마케팅팀의 **인원 감축(-2명)** 및 **조직 개편(마케팅 1, 2팀 → 통합 부팀)** 상황을 반영한 직무 분석 대시보드입니다.  
+웹앱 자동화 및 데이터 분석을 통해 물리적 인원 감소를 극복하고 업무 효율화를 이뤄낸 성과를 시각화했습니다.
 """)
 
-# 1. 파일 업로드 기능
-uploaded_file = st.sidebar.file_uploader("직무현황표 엑셀 파일을 업로드하세요", type=["xlsx"])
+# 2. 데이터 로딩 함수 (캐싱 적용)
+@st.cache_data
+def load_data(file_path):
+    # 엑셀 파일 읽기
+    df = pd.read_excel(file_path, sheet_name='직무표')
+    
+    # 컬럼명 단순화 및 전처리
+    df = df.rename(columns={
+        '직무\n(Job)': '직무',
+        '책무\n(Duty)': '책무',
+        '과업\n(Task)': '과업',
+        '과업\n수행시간\n(연간)': '과업수행시간'
+    })
+    
+    # 중복 컬럼 제거 (헤더 병합 시 발생하는 문제 방지)
+    df = df.loc[:, ~df.columns.duplicated()]
+    
+    # 병합된 셀(빈칸) 데이터 앞의 값으로 채우기
+    df['직무'] = df['직무'].ffill()
+    df['책무'] = df['책무'].ffill()
+    
+    # 수행시간이 숫자인 데이터만 남기기
+    df['과업수행시간'] = pd.to_numeric(df['과업수행시간'], errors='coerce')
+    df = df.dropna(subset=['과업수행시간'])
+    
+    return df
 
-if uploaded_file is not None:
-    # 2. 데이터 로드 및 전처리
-    @st.cache_data
-    def load_data(file):
-        # '직무표' 시트 불러오기 (헤더는 2번째 줄에 위치)
-        df = pd.read_excel(file, sheet_name='직무표', header=1) 
-        
-        # 컬럼명 단순화
-        df.rename(columns={
-            '직무\n(Job)': '직무',
-            '책무\n(Duty)': '책무',
-            '과업\n(Task)': '과업',
-            '과업\n수행시간\n(연간)': '수행시간'
-        }, inplace=True)
-        
-        # 직무, 책무 컬럼의 병합된 빈칸 채우기(Forward Fill)
-        df['직무'] = df['직무'].ffill()
-        df['책무'] = df['책무'].ffill()
-        
-        # 수행시간이 숫자인 행만 필터링
-        df['수행시간'] = pd.to_numeric(df['수행시간'], errors='coerce')
-        df = df.dropna(subset=['수행시간'])
-        
-        return df
+# 3. 깃허브에 업로드된 파일명 (동일 경로)
+file_2025 = "직무현황표_20250515_2025B_마케팅팀.xlsx"
+file_2026 = "직무현황표_20260408_2026A_마케팅팀.xlsx"
 
-    try:
-        df = load_data(uploaded_file)
-        
-        # 총 수행시간 계산
-        total_hours_2026 = df['수행시간'].sum()
-        # 1인당 표준근무가능시간
-        std_hours_per_person = 1826.7
-        # 2명 감소분
-        reduced_hours = std_hours_per_person * 2
-        
-        st.success("데이터 로드 완료!")
+# 파일 존재 여부 확인 후 실행
+if os.path.exists(file_2025) and os.path.exists(file_2026):
+    df_2025 = load_data(file_2025)
+    df_2026 = load_data(file_2026)
+    
+    # 시간 계산 (1인당 표준 근무: 1826.7시간)
+    std_hours = 1826.7
+    reduced_people = 2
+    loss_hours = std_hours * reduced_people # -3,653.4 시간
+    
+    sum_2025 = df_2025['과업수행시간'].sum()
+    sum_2026 = df_2026['과업수행시간'].sum()
+    
+    # 조직통폐합/자동화로 추가 세이브된 시간 계산
+    efficiency_hours = sum_2025 - loss_hours - sum_2026
+    
+    st.divider()
+    
+    # =====================================================================
+    # 시각화 1: 워터폴 차트 (인원 감축 방어 및 효율화)
+    # =====================================================================
+    st.subheader("💡 1. 인원 감소 방어 및 자동화 업무 효율화 성과")
+    st.markdown(f"총 **{loss_hours:,.1f}시간(2명)**의 T/O 감축이 있었으나, 부팀 통폐합 및 파이썬 웹앱 도입을 통해 오히려 **{efficiency_hours:,.1f}시간**의 추가 비효율을 걷어냈습니다.")
 
-        # =====================================================================
-        # 시각화 1: 워터폴 차트 (조직개편 및 인원 감축 대응 성과)
-        # =====================================================================
-        st.subheader("1. 업무 가용시간 변동 및 효율화 성과")
-        
-        st.markdown("""
-        인원 감축(-2명)으로 인한 가용시간 감소분을 **중복업무 통폐합** 및 **데이터 분석 기반 웹앱 자동화**를 통해 상쇄하고, 신규 핵심 사업(연료전지 등)에 여력을 집중하고 있습니다.
-        """)
+    fig_waterfall = go.Figure(go.Waterfall(
+        name = "Hours",
+        orientation = "v",
+        measure = ["absolute", "relative", "relative", "total"],
+        x = ["2025년 총 과업시간", f"T/O 감축 (-{reduced_people}명)", "조직통폐합 및<br>데이터 웹앱 자동화", "2026년 총 과업시간"],
+        textposition = "outside",
+        text = [
+            f"{sum_2025:,.0f}h", 
+            f"-{loss_hours:,.0f}h", 
+            f"-{efficiency_hours:,.0f}h", 
+            f"{sum_2026:,.0f}h"
+        ],
+        y = [sum_2025, -loss_hours, -efficiency_hours, sum_2026],
+        connector = {"line":{"color":"rgb(63, 63, 63)", "width": 2}},
+        decreasing = {"marker":{"color":"#FF5A5F"}},
+        totals = {"marker":{"color":"#00A699"}}
+    ))
 
-        # 워터폴 차트 데이터 구성
-        fig_waterfall = go.Figure(go.Waterfall(
-            name = "시간 변동",
-            orientation = "v",
-            measure = ["relative", "relative", "relative", "relative", "total"],
-            x = ["25년 가용시간<br>(인원감축 전)", "T/O 감축<br>(-2명)", "업무 통폐합 및<br>자동화 효율화", "고부가가치<br>업무 재투자", "26년 현재<br>총 가용시간"],
-            textposition = "outside",
-            text = [
-                f"{total_hours_2026 + reduced_hours:,.0f}h", 
-                f"-{reduced_hours:,.0f}h", 
-                f"+{reduced_hours:,.0f}h", 
-                "효율화 시간 전환", 
-                f"{total_hours_2026:,.0f}h"
-            ],
-            y = [total_hours_2026 + reduced_hours, -reduced_hours, reduced_hours, 0, total_hours_2026],
-            connector = {"line":{"color":"rgb(63, 63, 63)"}},
-            decreasing = {"marker":{"color":"#FF5A5F"}},
-            increasing = {"marker":{"color":"#00A699"}},
-            totals = {"marker":{"color":"#484848"}}
-        ))
+    fig_waterfall.update_layout(height=450, showlegend=False)
+    st.plotly_chart(fig_waterfall, use_container_width=True)
 
-        fig_waterfall.update_layout(
-            title="연간 마케팅팀 업무시간 변동 추이 (1인 1,826.7h 기준)",
-            showlegend=False,
-            height=500
-        )
-        st.plotly_chart(fig_waterfall, use_container_width=True)
+    # =====================================================================
+    # 시각화 2: 2025 vs 2026 직무별 비중 비교 (도넛 차트)
+    # =====================================================================
+    st.subheader("📊 2. 연도별 직무 투입 시간 비교")
+    col1, col2 = st.columns(2)
+    
+    # 2025년 직무 그룹
+    df_job_25 = df_2025.groupby('직무')['과업수행시간'].sum().reset_index()
+    # 2026년 직무 그룹
+    df_job_26 = df_2026.groupby('직무')['과업수행시간'].sum().reset_index()
+    
+    with col1:
+        st.markdown("**[ 2025년 직무 비중 ]**")
+        fig_pie25 = px.pie(df_job_25, values='과업수행시간', names='직무', hole=0.4)
+        fig_pie25.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(fig_pie25, use_container_width=True)
+        
+    with col2:
+        st.markdown("**[ 2026년 직무 비중 ]**")
+        fig_pie26 = px.pie(df_job_26, values='과업수행시간', names='직무', hole=0.4)
+        fig_pie26.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(fig_pie26, use_container_width=True)
 
-        # =====================================================================
-        # 시각화 2: 2026년 직무별 투입 시간 비중 (도넛 차트 & 트리맵)
-        # =====================================================================
-        st.subheader("2. 2026년 마케팅팀 직무별 투입 비중")
-        
-        col1, col2 = st.columns(2)
-        
-        # 직무별 그룹화
-        df_job = df.groupby('직무')['수행시간'].sum().reset_index()
-        
-        with col1:
-            st.markdown("**직무별 투입시간 (도넛 차트)**")
-            fig_pie = px.pie(df_job, values='수행시간', names='직무', hole=0.4,
-                             color_discrete_sequence=px.colors.qualitative.Pastel)
-            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig_pie, use_container_width=True)
-            
-        with col2:
-            st.markdown("**세부 과업별 투입시간 (트리맵)**")
-            # 트리맵을 위해 0인 데이터 제외
-            df_tree = df[df['수행시간'] > 0]
-            fig_tree = px.treemap(df_tree, path=['직무', '책무'], values='수행시간',
-                                  color='수행시간', color_continuous_scale='Blues')
-            st.plotly_chart(fig_tree, use_container_width=True)
-
-        # =====================================================================
-        # 데이터 테이블 확인
-        # =====================================================================
-        st.subheader("3. 세부 직무 데이터 확인")
-        job_list = df['직무'].dropna().unique()
-        selected_jobs = st.multiselect("확인하고 싶은 직무를 선택하세요:", options=job_list, default=job_list)
-        
-        df_filtered = df[df['직무'].isin(selected_jobs)]
-        st.dataframe(df_filtered[['직무', '책무', '과업', '수행시간', '과업 담당자']], use_container_width=True)
-
-    except Exception as e:
-        st.error(f"데이터를 처리하는 중 오류가 발생했습니다. 엑셀 파일 형식을 다시 확인해 주세요.\n오류내용: {e}")
+    # =====================================================================
+    # 데이터 테이블 비교
+    # =====================================================================
+    st.subheader("📋 3. 세부 직무 데이터 조회")
+    tab1, tab2 = st.tabs(["2026년 현재", "2025년 작년"])
+    
+    with tab1:
+        st.dataframe(df_2026[['직무', '책무', '과업', '과업 담당자', '과업수행시간']], use_container_width=True)
+    with tab2:
+        st.dataframe(df_2025[['직무', '책무', '과업', '과업 담당자', '과업수행시간']], use_container_width=True)
 
 else:
-    st.info("👈 왼쪽 사이드바에서 '직무현황표' 엑셀 파일을 업로드해 주세요.")
+    st.error("지정된 엑셀 파일을 찾을 수 없습니다. 파일명이 코드와 동일한지, 같은 폴더에 있는지 확인해주세요.")
