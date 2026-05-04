@@ -130,11 +130,11 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.markdown("• 공동주택공급관리 (-1,594h)")
         st.markdown("• 산업용마케팅 (-666h)")
         
-    # (수정됨) 영업활성화를 과업 기호로 수정하고 하위 넘버링 적용
+    # (수정됨) 영업활성화 뒤에 상세 내용 추가
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.markdown("• 마케팅전략기획 (+230h)")
-        st.markdown("&nbsp;&nbsp;- 영업활성화")
+        st.markdown("&nbsp;&nbsp;- 영업활성화 (업무개선 과제 발굴 및 기획 포함)")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;1) 데이터 분석 및 시각화 결과 공유")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;2) 시스템 유지 보수")
         
