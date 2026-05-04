@@ -130,7 +130,6 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.markdown("• 공동주택공급관리 (-1,594h)")
         st.markdown("• 산업용마케팅 (-666h)")
         
-    # (수정됨) 마크다운 리스트 자동 렌더링을 피하고 명시적인 '•' 텍스트 기호 사용
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.markdown("• 마케팅전략기획 (+230h)")
@@ -229,7 +228,6 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
             return ['background-color: #e6e6e6; font-weight: bold'] * len(row)
         return [''] * len(row)
 
-    # (수정됨) 과업수를 소수점이 없는 정수로 깔끔하게 포맷 ('과업수': '{:.0f}')
     st.dataframe(agg_26.style.format({
         '과업수': '{:.0f}',
         '25년 수행시간': '{:,.0f}', '26년 수행시간': '{:,.0f}', '증감(h)': '{:,.0f}',
@@ -241,6 +239,13 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     
     plot_df = comp_df[(comp_df['2025년(h)'] > 0) | (comp_df['2026년(h)'] > 0)]
     plot_df = plot_df.sort_values(by='2026년(h)', ascending=False)
+    
+    # (수정됨) '업무(영업)용 마케팅' 항목을 데이터프레임 가장 마지막으로 이동
+    target_col = '업무(영업)용 마케팅'
+    if target_col in plot_df['책무명'].values:
+        target_row = plot_df[plot_df['책무명'] == target_col]
+        plot_df = plot_df[plot_df['책무명'] != target_col]
+        plot_df = pd.concat([plot_df, target_row])
     
     fig_comp = go.Figure()
     fig_comp.add_trace(go.Bar(
@@ -257,6 +262,7 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         height=500,
         xaxis_title="책무명",
         yaxis_title="연간 과업 수행시간 (Hours)",
+        xaxis=dict(categoryorder='array', categoryarray=plot_df['책무명']), # 지정된 순서대로 x축 고정
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     st.plotly_chart(fig_comp, use_container_width=True)
