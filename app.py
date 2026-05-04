@@ -134,11 +134,13 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.write("+ 마케팅전략기획 (+230h)")
         st.write("  *(영업활성화 과업 +690h 증가)*")
+        st.write("+ 데이터 분석 및 시스템 유지 보수 (+540h)")
         
     with col_c:
         st.info("💡 **Create (창조)**\n\n기능 통합형 신규 마케팅 체계 구축")
         st.write("+ 업무(영업)용 마케팅 (+3,194h)")
         st.write("  *(업무/영업용 일원화 신설)*")
+        st.write("+ 웹앱을 통한 공유")
 
     st.info(f"""
     🚀 **[Conclusion & Action Plan]**
@@ -181,11 +183,9 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     agg_26['난이도'] = agg_26['난이도'].round(1)
     agg_26['숙련도'] = agg_26['숙련도'].round(1)
 
-    # 컬럼 순서 재배치
     cols = ['직무명', '책무명', '과업수', '25년 수행시간', '26년 수행시간', '증감(h)', '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
     agg_26 = agg_26[cols].sort_values(['직무명', '26년 수행시간'], ascending=[True, False])
     
-    # --- 합계(소계) 행 추가 로직 ---
     total_row = pd.DataFrame([{
         '직무명': '합계',
         '책무명': '-',
@@ -199,7 +199,6 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         '숙련도': None,
         '업무등급': '-'
     }])
-    # 합계 행을 데이터프레임 맨 아래에 병합
     agg_26 = pd.concat([agg_26, total_row], ignore_index=True)
 
     def color_negative_red(val):
@@ -211,9 +210,10 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         except ValueError:
             return ''
 
-    # 데이터프레임 시각화
+    # 구성비 소수점 1자리 적용 ('업무량 구성비(%)': '{:.1f}')
     st.dataframe(agg_26.style.format({
         '25년 수행시간': '{:,.0f}', '26년 수행시간': '{:,.0f}', '증감(h)': '{:,.0f}',
+        '업무량 구성비(%)': '{:.1f}',
         '중요도': '{:.1f}', '난이도': '{:.1f}', '숙련도': '{:.1f}'
     }, na_rep="-").map(color_negative_red, subset=['증감(h)']), hide_index=True, use_container_width=True)
 
