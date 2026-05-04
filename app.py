@@ -121,25 +121,26 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     
     with col_e:
         st.error("🗑️ **Eliminate (제거)**\n\n부팀 통합에 따른 중복 파편화 업무 제거")
-        st.write("- 업무용 마케팅 (-2,432h)")
-        st.write("- 영업용 마케팅 (-1,988h)")
+        st.markdown("• 업무용 마케팅 (-2,432h)")
+        st.markdown("• 영업용 마케팅 (-1,988h)")
         
     with col_r:
         st.warning("📉 **Reduce (감소)**\n\n자동화 및 선택과 집중을 통한 시간 단축")
-        st.write("- 연료전지마케팅 (-1,742h)")
-        st.write("- 공동주택공급관리 (-1,594h)")
-        st.write("- 산업용마케팅 (-666h)")
+        st.markdown("• 연료전지마케팅 (-1,742h)")
+        st.markdown("• 공동주택공급관리 (-1,594h)")
+        st.markdown("• 산업용마케팅 (-666h)")
         
+    # (수정됨) 마크다운 리스트 자동 렌더링을 피하고 명시적인 '•' 텍스트 기호 사용
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
-        st.write("+ 마케팅전략기획 (+230h)")
-        st.write("  • 영업활성화 (+230h)")
+        st.markdown("• 마케팅전략기획 (+230h)")
+        st.markdown("• 영업활성화 (+230h)")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 데이터 분석 및 시각화 결과 공유")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 시스템 유지 보수")
         
     with col_c:
         st.info("💡 **Create (창조)**\n\n기능 통합형 신규 마케팅 체계 구축")
-        st.write("+ 업무(영업)용 마케팅 (+3,194h)")
+        st.markdown("• 업무(영업)용 마케팅 (+3,194h)")
         st.write("  *(업무/영업용 일원화 신설)*")
 
     st.info(f"""
@@ -168,17 +169,14 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
 
     comp_df = diff_df.reset_index()
     
-    # (수정됨) 2026년에만 병합하는 것이 아니라, 2025년 데이터도 표에 나오도록 Outer Join 수행
     agg_26 = pd.merge(agg_26, comp_df, on='책무명', how='outer')
     agg_26 = agg_26.rename(columns={'2025년(h)': '25년 수행시간', '2026년(h)': '26년 수행시간'})
     
-    # (수정됨) 2026년에 없어진(Eliminated) 책무들의 빈 직무명을 2025년 데이터에서 가져와 채우기
     job_map_25 = df_2025.groupby('책무명')['직무명'].first().reset_index()
     agg_26 = pd.merge(agg_26, job_map_25, on='책무명', how='left', suffixes=('', '_25'))
     agg_26['직무명'] = agg_26['직무명'].fillna(agg_26['직무명_25'])
     agg_26 = agg_26.drop(columns=['직무명_25'])
     
-    # 빈 값(NaN) 0으로 처리
     agg_26['과업수'] = agg_26['과업수'].fillna(0)
     agg_26['연간수행시간'] = agg_26['연간수행시간'].fillna(0)
     
@@ -231,7 +229,9 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
             return ['background-color: #e6e6e6; font-weight: bold'] * len(row)
         return [''] * len(row)
 
+    # (수정됨) 과업수를 소수점이 없는 정수로 깔끔하게 포맷 ('과업수': '{:.0f}')
     st.dataframe(agg_26.style.format({
+        '과업수': '{:.0f}',
         '25년 수행시간': '{:,.0f}', '26년 수행시간': '{:,.0f}', '증감(h)': '{:,.0f}',
         '업무량 구성비(%)': '{:.1f}',
         '중요도': '{:.1f}', '난이도': '{:.1f}', '숙련도': '{:.1f}'
