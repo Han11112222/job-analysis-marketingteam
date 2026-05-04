@@ -130,11 +130,11 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.write("- 공동주택공급관리 (-1,594h)")
         st.write("- 산업용마케팅 (-666h)")
         
+    # (수정됨) '영업활성화' 앞 기호를 다른 항목과 동일한 '+'로 변경
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.write("+ 마케팅전략기획 (+230h)")
-        # 수정됨: '·' 대신 '*' 기호 적용
-        st.markdown("&nbsp;&nbsp;* 영업활성화")
+        st.markdown("&nbsp;&nbsp;+ 영업활성화")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 데이터 분석 및 시각화 결과 공유")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 시스템 유지 보수")
         
@@ -184,8 +184,14 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     agg_26['난이도'] = agg_26['난이도'].round(1)
     agg_26['숙련도'] = agg_26['숙련도'].round(1)
 
+    # (수정됨) 커스텀 정렬 적용: 사진에 명시된 직무명 순서 강제 고정
+    custom_sort_order = ['팀리더', '일반관리', '영업기획/관리', '주택용 수요개발', '주택용 외 수요개발']
+    agg_26['직무명'] = pd.Categorical(agg_26['직무명'], categories=custom_sort_order, ordered=True)
+    
     cols = ['직무명', '책무명', '과업수', '25년 수행시간', '26년 수행시간', '증감(h)', '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
-    agg_26 = agg_26[cols].sort_values(['직무명', '26년 수행시간'], ascending=[True, False])
+    
+    # 직무명 커스텀 순서 우선 적용 후, 그 안에서 책무명 등은 기존 데이터 순서 유지
+    agg_26 = agg_26[cols].sort_values(['직무명'])
     
     total_row = pd.DataFrame([{
         '직무명': '합계',
