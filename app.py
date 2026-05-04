@@ -130,11 +130,11 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.write("- 공동주택공급관리 (-1,594h)")
         st.write("- 산업용마케팅 (-666h)")
         
-    # (수정됨) '영업활성화'의 불릿 기호를 완전 동일하게(+) 수정
+    # (수정됨) '영업활성화' 뒤에 (+230h) 텍스트 추가
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.write("+ 마케팅전략기획 (+230h)")
-        st.write("+ 영업활성화")
+        st.markdown("&nbsp;&nbsp;• 영업활성화 (+230h)")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 데이터 분석 및 시각화 결과 공유")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 시스템 유지 보수")
         
