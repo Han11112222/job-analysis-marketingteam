@@ -56,7 +56,7 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     st.divider()
 
     # =====================================================================
-    # 분석 1: 적정 필요 인원 도출 (팀리더 분리) - 수정됨
+    # 분석 1: 적정 필요 인원 도출 (팀리더 분리)
     # =====================================================================
     st.subheader("💡 1. 실무진(팀원) 과업시간 기반 적정 필요 인원 분석")
     
@@ -70,18 +70,34 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
 
     col1, col2 = st.columns(2)
     with col1:
-        # 그룹 그래프에서 누적(stacked) 그래프로 변경됨
+        # 총 과업시간(합산) 계산
+        total_2025 = staff_2025_sum + leader_2025
+        total_2026 = staff_2026_sum + leader_2026
+        
         fig_bar = go.Figure()
-        fig_bar.add_trace(go.Bar(name='팀원(실무)', x=['2025년', '2026년'], y=[staff_2025_sum, staff_2026_sum], text=[f"{staff_2025_sum:,.0f}h", f"{staff_2026_sum:,.0f}h"], textposition='auto', marker_color='#00A699'))
-        fig_bar.add_trace(go.Bar(name='팀리더', x=['2025년', '2026년'], y=[leader_2025, leader_2026], text=[f"{leader_2025:,.0f}h", f"{leader_2026:,.0f}h"], textposition='auto', marker_color='#1f77b4'))
-        fig_bar.update_layout(title="연간 과업 수행시간 비교 (누적)", barmode='stack', height=400)
+        # textposition을 'inside'로 변경하여 글자가 밖으로 밀려 잘리는 현상 방지
+        fig_bar.add_trace(go.Bar(name='팀원(실무)', x=['2025년', '2026년'], y=[staff_2025_sum, staff_2026_sum], text=[f"{staff_2025_sum:,.0f}h", f"{staff_2026_sum:,.0f}h"], textposition='inside', marker_color='#00A699'))
+        fig_bar.add_trace(go.Bar(name='팀리더', x=['2025년', '2026년'], y=[leader_2025, leader_2026], text=[f"{leader_2025:,.0f}h", f"{leader_2026:,.0f}h"], textposition='inside', marker_color='#1f77b4'))
+        
+        # 막대 최상단에 전체 합산 시간을 [ *****h ] 형태로 추가
+        fig_bar.add_trace(go.Scatter(
+            x=['2025년', '2026년'], 
+            y=[total_2025, total_2026],
+            text=[f"<b>[ {total_2025:,.0f}h ]</b>", f"<b>[ {total_2026:,.0f}h ]</b>"],
+            mode='text',
+            textposition='top center',
+            showlegend=False,
+            hoverinfo='skip'
+        ))
+        
+        # 글자가 상단에 잘리지 않도록 margin(여백) t=60 옵션 추가
+        fig_bar.update_layout(title="연간 과업 수행시간 비교 (누적)", barmode='stack', height=400, margin=dict(t=60))
         st.plotly_chart(fig_bar, use_container_width=True)
         
     with col2:
         fig_line = go.Figure()
         fig_line.add_trace(go.Bar(x=['2025년 기준', '2026년 기준'], y=[req_ppl_2025, req_ppl_2026],
                                    text=[f"팀원 필요 {req_ppl_2025:.1f}명", f"팀원 필요 {req_ppl_2026:.1f}명"], textposition='auto', marker_color=['#ff7f0e', '#FF5A5F']))
-        # 기준선 8명에서 10명으로 변경됨
         fig_line.add_hline(y=10, line_dash="dash", line_color="red", annotation_text="현재 팀원 정원 (10명)", annotation_position="bottom right")
         fig_line.update_layout(title="표준근무시간 기준 적정 필요 인원 (팀원 한정)", height=400)
         st.plotly_chart(fig_line, use_container_width=True)
@@ -157,7 +173,7 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     with st.expander("🔺 가장 많이 증가/창조된 과업 확인하기"):
         st.dataframe(merged_task.sort_values('증감(h)', ascending=False).head(10)[['책무', '과업', '증감(h)', '과업수행시간_2025', '과업수행시간_2026']].style.format("{:,.0f}", subset=['증감(h)', '과업수행시간_2025', '과업수행시간_2026']), use_container_width=True)
 
-    # 향후 집중 방향 결론 (결론 인원 수치 10명으로 수정)
+    # 향후 집중 방향 결론
     st.info(f"""
     🚀 **[Conclusion & Action Plan]**
     현재 마케팅팀은 **필요 인원({req_ppl_2026:.1f}명) 대비 실제 인원(10명)** 이라는 극도로 타이트한 환경 속에서 일하고 있습니다. 
