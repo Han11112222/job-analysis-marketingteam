@@ -130,20 +130,19 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.write("- 공동주택공급관리 (-1,594h)")
         st.write("- 산업용마케팅 (-666h)")
         
-    # (수정됨) Raise 파트 내용 엑셀 원본 논리에 맞게 수정
+    # (수정됨) Raise 기호 및 들여쓰기 텍스트 반영
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.write("+ 마케팅전략기획 (+230h)")
-        st.write("  *(영업활성화)*")
-        st.write("  *(- 데이터 분석 및 시각화 결과 공유)*")
-        st.write("  *(- 시스템 유지 보수)*")
+        st.markdown("&nbsp;&nbsp;· 영업활성화")
+        st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 데이터 분석 및 시각화 결과 공유")
+        st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 시스템 유지 보수")
         
-    # (수정됨) Create 파트에 웹앱 통한 공유 추가
+    # (수정됨) Create 삭제 요청 반영
     with col_c:
         st.info("💡 **Create (창조)**\n\n기능 통합형 신규 마케팅 체계 구축")
         st.write("+ 업무(영업)용 마케팅 (+3,194h)")
         st.write("  *(업무/영업용 일원화 신설)*")
-        st.write("+ 웹앱을 통한 공유")
 
     st.info(f"""
     🚀 **[Conclusion & Action Plan]**
@@ -189,7 +188,6 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     cols = ['직무명', '책무명', '과업수', '25년 수행시간', '26년 수행시간', '증감(h)', '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
     agg_26 = agg_26[cols].sort_values(['직무명', '26년 수행시간'], ascending=[True, False])
     
-    # (수정됨) 합계 행의 '업무량 구성비(%)'를 100.0으로 명시적 고정
     total_row = pd.DataFrame([{
         '직무명': '합계',
         '책무명': '-',
@@ -214,13 +212,11 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         except ValueError:
             return ''
 
-    # (수정됨) 합계 행 하이라이트 함수 (배경 회색, 글자 굵게)
     def highlight_total(row):
         if row['직무명'] == '합계':
             return ['background-color: #e6e6e6; font-weight: bold'] * len(row)
         return [''] * len(row)
 
-    # (수정됨) apply를 사용하여 행 단위로 하이라이트 적용
     st.dataframe(agg_26.style.format({
         '25년 수행시간': '{:,.0f}', '26년 수행시간': '{:,.0f}', '증감(h)': '{:,.0f}',
         '업무량 구성비(%)': '{:.1f}',
