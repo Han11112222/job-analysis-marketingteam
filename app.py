@@ -130,12 +130,15 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.write("- 공동주택공급관리 (-1,594h)")
         st.write("- 산업용마케팅 (-666h)")
         
+    # (수정됨) Raise 파트 내용 엑셀 원본 논리에 맞게 수정
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.write("+ 마케팅전략기획 (+230h)")
-        st.write("  *(영업활성화 과업 +690h 증가)*")
-        st.write("+ 데이터 분석 및 시스템 유지 보수 (+540h)")
+        st.write("  *(영업활성화)*")
+        st.write("  *(- 데이터 분석 및 시각화 결과 공유)*")
+        st.write("  *(- 시스템 유지 보수)*")
         
+    # (수정됨) Create 파트에 웹앱 통한 공유 추가
     with col_c:
         st.info("💡 **Create (창조)**\n\n기능 통합형 신규 마케팅 체계 구축")
         st.write("+ 업무(영업)용 마케팅 (+3,194h)")
@@ -186,6 +189,7 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     cols = ['직무명', '책무명', '과업수', '25년 수행시간', '26년 수행시간', '증감(h)', '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
     agg_26 = agg_26[cols].sort_values(['직무명', '26년 수행시간'], ascending=[True, False])
     
+    # (수정됨) 합계 행의 '업무량 구성비(%)'를 100.0으로 명시적 고정
     total_row = pd.DataFrame([{
         '직무명': '합계',
         '책무명': '-',
@@ -193,7 +197,7 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         '25년 수행시간': agg_26['25년 수행시간'].sum(),
         '26년 수행시간': agg_26['26년 수행시간'].sum(),
         '증감(h)': agg_26['증감(h)'].sum(),
-        '업무량 구성비(%)': agg_26['업무량 구성비(%)'].sum(),
+        '업무량 구성비(%)': 100.0,
         '중요도': None,
         '난이도': None,
         '숙련도': None,
@@ -210,12 +214,18 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         except ValueError:
             return ''
 
-    # 구성비 소수점 1자리 적용 ('업무량 구성비(%)': '{:.1f}')
+    # (수정됨) 합계 행 하이라이트 함수 (배경 회색, 글자 굵게)
+    def highlight_total(row):
+        if row['직무명'] == '합계':
+            return ['background-color: #e6e6e6; font-weight: bold'] * len(row)
+        return [''] * len(row)
+
+    # (수정됨) apply를 사용하여 행 단위로 하이라이트 적용
     st.dataframe(agg_26.style.format({
         '25년 수행시간': '{:,.0f}', '26년 수행시간': '{:,.0f}', '증감(h)': '{:,.0f}',
         '업무량 구성비(%)': '{:.1f}',
         '중요도': '{:.1f}', '난이도': '{:.1f}', '숙련도': '{:.1f}'
-    }, na_rep="-").map(color_negative_red, subset=['증감(h)']), hide_index=True, use_container_width=True)
+    }, na_rep="-").map(color_negative_red, subset=['증감(h)']).apply(highlight_total, axis=1), hide_index=True, use_container_width=True)
 
     st.markdown("<br>**[ 2025년 vs 2026년 책무별 수행시간 변동 비교 ]**", unsafe_allow_html=True)
     
