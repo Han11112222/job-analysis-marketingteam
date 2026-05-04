@@ -130,11 +130,10 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.write("- 공동주택공급관리 (-1,594h)")
         st.write("- 산업용마케팅 (-666h)")
         
-    # (수정됨) 마케팅전략기획과 완벽하게 동일한 특수문자가 렌더링되도록 수정
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.write("+ 마케팅전략기획 (+230h)")
-        st.write("+ 영업활성화 (+230h)")
+        st.write("  • 영업활성화 (+230h)")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 데이터 분석 및 시각화 결과 공유")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 시스템 유지 보수")
         
@@ -168,8 +167,20 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     ).reset_index()
 
     comp_df = diff_df.reset_index()
-    agg_26 = pd.merge(agg_26, comp_df, on='책무명', how='left')
+    
+    # (수정됨) 2026년에만 병합하는 것이 아니라, 2025년 데이터도 표에 나오도록 Outer Join 수행
+    agg_26 = pd.merge(agg_26, comp_df, on='책무명', how='outer')
     agg_26 = agg_26.rename(columns={'2025년(h)': '25년 수행시간', '2026년(h)': '26년 수행시간'})
+    
+    # (수정됨) 2026년에 없어진(Eliminated) 책무들의 빈 직무명을 2025년 데이터에서 가져와 채우기
+    job_map_25 = df_2025.groupby('책무명')['직무명'].first().reset_index()
+    agg_26 = pd.merge(agg_26, job_map_25, on='책무명', how='left', suffixes=('', '_25'))
+    agg_26['직무명'] = agg_26['직무명'].fillna(agg_26['직무명_25'])
+    agg_26 = agg_26.drop(columns=['직무명_25'])
+    
+    # 빈 값(NaN) 0으로 처리
+    agg_26['과업수'] = agg_26['과업수'].fillna(0)
+    agg_26['연간수행시간'] = agg_26['연간수행시간'].fillna(0)
     
     total_hours_26 = agg_26['연간수행시간'].sum()
     agg_26['업무량 구성비(%)'] = (agg_26['연간수행시간'] / total_hours_26 * 100).round(1)
