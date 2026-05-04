@@ -9,7 +9,6 @@ st.set_page_config(page_title="마케팅팀 직무분석 (ERRC)", layout="wide")
 
 st.title("📊 마케팅팀 직무 및 적정 인원 분석 (2025 vs 2026)")
 st.markdown("""
-**작성자:** 최한엽 (Han)  
 본 대시보드는 2025년 대비 2026년 마케팅팀의 **실제 과업 수행 시간**을 바탕으로 **적정 필요 인원**을 산출하고,  
 조직 개편(마케팅부팀 통폐합)에 따른 직무 변화를 **ERRC(제거/감소/증가/창조)** 관점에서 분석한 자료입니다.
 """)
@@ -75,10 +74,10 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         total_2026 = staff_2026_sum + leader_2026
         
         fig_bar = go.Figure()
-        # textfont 옵션을 추가하여 폰트 크기 통일 (예: 14)
-        fig_bar.add_trace(go.Bar(name='팀원(실무)', x=['2025년', '2026년'], y=[staff_2025_sum, staff_2026_sum], text=[f"{staff_2025_sum:,.0f}h", f"{staff_2026_sum:,.0f}h"], textposition='inside', marker_color='#00A699', textfont=dict(size=14, color='white')))
-        # 팀리더 막대의 폰트 크기도 14로 고정
-        fig_bar.add_trace(go.Bar(name='팀리더', x=['2025년', '2026년'], y=[leader_2025, leader_2026], text=[f"{leader_2025:,.0f}h", f"{leader_2026:,.0f}h"], textposition='inside', marker_color='#1f77b4', textfont=dict(size=14, color='white')))
+        
+        # constraintext='none'을 추가하여 자동 폰트 축소 방지
+        fig_bar.add_trace(go.Bar(name='팀원(실무)', x=['2025년', '2026년'], y=[staff_2025_sum, staff_2026_sum], text=[f"{staff_2025_sum:,.0f}h", f"{staff_2026_sum:,.0f}h"], textposition='inside', marker_color='#00A699', textfont=dict(size=14, color='white'), constraintext='none'))
+        fig_bar.add_trace(go.Bar(name='팀리더', x=['2025년', '2026년'], y=[leader_2025, leader_2026], text=[f"{leader_2025:,.0f}h", f"{leader_2026:,.0f}h"], textposition='inside', marker_color='#1f77b4', textfont=dict(size=14, color='white'), constraintext='none'))
         
         # 막대 최상단에 전체 합산 시간을 [ *****h ] 형태로 추가
         fig_bar.add_trace(go.Scatter(
@@ -100,7 +99,6 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         fig_line.add_trace(go.Bar(x=['2025년 기준', '2026년 기준'], y=[req_ppl_2025, req_ppl_2026],
                                    text=[f"팀원 필요 {req_ppl_2025:.1f}명", f"팀원 필요 {req_ppl_2026:.1f}명"], textposition='auto', marker_color=['#ff7f0e', '#FF5A5F']))
         fig_line.add_hline(y=10, line_dash="dash", line_color="red", annotation_text="현재 팀원 정원 (10명)", annotation_position="bottom right")
-        # 제목 (팀원 한정) -> (팀장 제외)로 수정
         fig_line.update_layout(title="표준근무시간 기준 적정 필요 인원 (팀장 제외)", height=400)
         st.plotly_chart(fig_line, use_container_width=True)
 
@@ -109,7 +107,7 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     # =====================================================================
     # 분석 2 & 3: ERRC 관점의 직무 변화 (책무별 증감 비교)
     # =====================================================================
-    st.subheader("🎯 2 & 3. ERRC 관점의 직무 변화 및 세부 과업 비교")
+    st.subheader("🎯 2. ERRC 관점의 직무 변화 및 세부 과업 비교")
     
     st.markdown("""
     업무 과부하 속에서도 마케팅 1, 2팀을 통합하며 중복 업무를 **제거(E)/감소(R)**하고, 
