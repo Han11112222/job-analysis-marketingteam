@@ -152,12 +152,48 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     st.divider()
 
     # =====================================================================
-    # 분석 3: 책무별 업무량 분석 표 및 비교 차트
+    # 분석 3: 책무별 업무량 정밀 분석 및 연도별 비교
     # =====================================================================
     st.subheader("📊 3. 책무별 업무량 정밀 분석 및 연도별 비교")
     
     st.markdown("2025년 대비 2026년의 수행시간 증감 내역과, 현재(26년) 기준 직무/책무별 세부 수준을 확인하실 수 있습니다.")
     
+    # ------------------ (1) 차트 렌더링 ------------------
+    st.markdown("<br>**[ 2025년 vs 2026년 책무별 수행시간 변동 비교 그래프 ]**", unsafe_allow_html=True)
+    
+    comp_df = diff_df.reset_index()
+    plot_df = comp_df[(comp_df['2025년(h)'] > 0) | (comp_df['2026년(h)'] > 0)]
+    plot_df = plot_df.sort_values(by='2026년(h)', ascending=False)
+    
+    target_col = '업무(영업)용 마케팅'
+    if target_col in plot_df['책무명'].values:
+        target_row = plot_df[plot_df['책무명'] == target_col]
+        plot_df = plot_df[plot_df['책무명'] != target_col]
+        plot_df = pd.concat([plot_df, target_row])
+    
+    fig_comp = go.Figure()
+    fig_comp.add_trace(go.Bar(
+        x=plot_df['책무명'], y=plot_df['2025년(h)'],
+        name='2025년', marker_color='#1f77b4'
+    ))
+    fig_comp.add_trace(go.Bar(
+        x=plot_df['책무명'], y=plot_df['2026년(h)'],
+        name='2026년', marker_color='#00A699'
+    ))
+
+    fig_comp.update_layout(
+        barmode='group',
+        height=500,
+        xaxis_title="책무명",
+        yaxis_title="연간 과업 수행시간 (Hours)",
+        xaxis=dict(categoryorder='array', categoryarray=plot_df['책무명']), 
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    st.plotly_chart(fig_comp, use_container_width=True)
+
+    # ------------------ (2) 표 렌더링 ------------------
+    st.markdown("<br>**[ 2025년 vs 2026년 직무/책무별 상세 업무량 분석 표 ]**", unsafe_allow_html=True)
+
     agg_26 = df_2026.groupby(['직무명', '책무명']).agg(
         과업수=('과업명', 'count'),
         연간수행시간=('수행시간', 'sum'),
@@ -166,8 +202,6 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         숙련도=('숙련도', 'mean')
     ).reset_index()
 
-    comp_df = diff_df.reset_index()
-    
     agg_26 = pd.merge(agg_26, comp_df, on='책무명', how='outer')
     agg_26 = agg_26.rename(columns={'2025년(h)': '25년 수행시간', '2026년(h)': '26년 수행시간'})
     
@@ -234,38 +268,6 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         '업무량 구성비(%)': '{:.1f}',
         '중요도': '{:.1f}', '난이도': '{:.1f}', '숙련도': '{:.1f}'
     }, na_rep="-").map(color_negative_red, subset=['증감(h)']).apply(highlight_total, axis=1), hide_index=True, use_container_width=True)
-
-    st.markdown("<br>**[ 2025년 vs 2026년 책무별 수행시간 변동 비교 ]**", unsafe_allow_html=True)
-    
-    plot_df = comp_df[(comp_df['2025년(h)'] > 0) | (comp_df['2026년(h)'] > 0)]
-    plot_df = plot_df.sort_values(by='2026년(h)', ascending=False)
-    
-    # (수정됨) '업무(영업)용 마케팅' 항목을 데이터프레임 가장 마지막으로 이동
-    target_col = '업무(영업)용 마케팅'
-    if target_col in plot_df['책무명'].values:
-        target_row = plot_df[plot_df['책무명'] == target_col]
-        plot_df = plot_df[plot_df['책무명'] != target_col]
-        plot_df = pd.concat([plot_df, target_row])
-    
-    fig_comp = go.Figure()
-    fig_comp.add_trace(go.Bar(
-        x=plot_df['책무명'], y=plot_df['2025년(h)'],
-        name='2025년', marker_color='#1f77b4'
-    ))
-    fig_comp.add_trace(go.Bar(
-        x=plot_df['책무명'], y=plot_df['2026년(h)'],
-        name='2026년', marker_color='#00A699'
-    ))
-
-    fig_comp.update_layout(
-        barmode='group',
-        height=500,
-        xaxis_title="책무명",
-        yaxis_title="연간 과업 수행시간 (Hours)",
-        xaxis=dict(categoryorder='array', categoryarray=plot_df['책무명']), # 지정된 순서대로 x축 고정
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-    st.plotly_chart(fig_comp, use_container_width=True)
 
 else:
     st.warning("지정된 엑셀 파일을 찾을 수 없습니다. 파일명이 깃허브 코드와 동일한지 확인해주세요.")
