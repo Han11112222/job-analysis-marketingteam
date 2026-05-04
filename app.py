@@ -181,19 +181,41 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     agg_26['난이도'] = agg_26['난이도'].round(1)
     agg_26['숙련도'] = agg_26['숙련도'].round(1)
 
+    # 컬럼 순서 재배치
     cols = ['직무명', '책무명', '과업수', '25년 수행시간', '26년 수행시간', '증감(h)', '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
     agg_26 = agg_26[cols].sort_values(['직무명', '26년 수행시간'], ascending=[True, False])
     
+    # --- 합계(소계) 행 추가 로직 ---
+    total_row = pd.DataFrame([{
+        '직무명': '합계',
+        '책무명': '-',
+        '과업수': agg_26['과업수'].sum(),
+        '25년 수행시간': agg_26['25년 수행시간'].sum(),
+        '26년 수행시간': agg_26['26년 수행시간'].sum(),
+        '증감(h)': agg_26['증감(h)'].sum(),
+        '업무량 구성비(%)': agg_26['업무량 구성비(%)'].sum(),
+        '중요도': None,
+        '난이도': None,
+        '숙련도': None,
+        '업무등급': '-'
+    }])
+    # 합계 행을 데이터프레임 맨 아래에 병합
+    agg_26 = pd.concat([agg_26, total_row], ignore_index=True)
+
     def color_negative_red(val):
         if pd.isna(val): return ''
-        color = 'red' if val < 0 else 'blue' if val > 0 else 'black'
-        return f'color: {color}'
+        try:
+            val_num = float(val)
+            color = 'red' if val_num < 0 else 'blue' if val_num > 0 else 'black'
+            return f'color: {color}'
+        except ValueError:
+            return ''
 
-    # 에러 수정 완료: applymap() -> map() 으로 변경
+    # 데이터프레임 시각화
     st.dataframe(agg_26.style.format({
         '25년 수행시간': '{:,.0f}', '26년 수행시간': '{:,.0f}', '증감(h)': '{:,.0f}',
         '중요도': '{:.1f}', '난이도': '{:.1f}', '숙련도': '{:.1f}'
-    }).map(color_negative_red, subset=['증감(h)']), hide_index=True, use_container_width=True)
+    }, na_rep="-").map(color_negative_red, subset=['증감(h)']), hide_index=True, use_container_width=True)
 
     st.markdown("<br>**[ 2025년 vs 2026년 책무별 수행시간 변동 비교 ]**", unsafe_allow_html=True)
     
