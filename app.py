@@ -130,15 +130,14 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.write("- 공동주택공급관리 (-1,594h)")
         st.write("- 산업용마케팅 (-666h)")
         
-    # (수정됨) Raise 기호 및 들여쓰기 텍스트 반영
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.write("+ 마케팅전략기획 (+230h)")
-        st.markdown("&nbsp;&nbsp;· 영업활성화")
+        # 수정됨: '·' 대신 '*' 기호 적용
+        st.markdown("&nbsp;&nbsp;* 영업활성화")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 데이터 분석 및 시각화 결과 공유")
         st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 시스템 유지 보수")
         
-    # (수정됨) Create 삭제 요청 반영
     with col_c:
         st.info("💡 **Create (창조)**\n\n기능 통합형 신규 마케팅 체계 구축")
         st.write("+ 업무(영업)용 마케팅 (+3,194h)")
