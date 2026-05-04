@@ -75,9 +75,10 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         total_2026 = staff_2026_sum + leader_2026
         
         fig_bar = go.Figure()
-        # textposition을 'inside'로 변경하여 글자가 밖으로 밀려 잘리는 현상 방지
-        fig_bar.add_trace(go.Bar(name='팀원(실무)', x=['2025년', '2026년'], y=[staff_2025_sum, staff_2026_sum], text=[f"{staff_2025_sum:,.0f}h", f"{staff_2026_sum:,.0f}h"], textposition='inside', marker_color='#00A699'))
-        fig_bar.add_trace(go.Bar(name='팀리더', x=['2025년', '2026년'], y=[leader_2025, leader_2026], text=[f"{leader_2025:,.0f}h", f"{leader_2026:,.0f}h"], textposition='inside', marker_color='#1f77b4'))
+        # textfont 옵션을 추가하여 폰트 크기 통일 (예: 14)
+        fig_bar.add_trace(go.Bar(name='팀원(실무)', x=['2025년', '2026년'], y=[staff_2025_sum, staff_2026_sum], text=[f"{staff_2025_sum:,.0f}h", f"{staff_2026_sum:,.0f}h"], textposition='inside', marker_color='#00A699', textfont=dict(size=14, color='white')))
+        # 팀리더 막대의 폰트 크기도 14로 고정
+        fig_bar.add_trace(go.Bar(name='팀리더', x=['2025년', '2026년'], y=[leader_2025, leader_2026], text=[f"{leader_2025:,.0f}h", f"{leader_2026:,.0f}h"], textposition='inside', marker_color='#1f77b4', textfont=dict(size=14, color='white')))
         
         # 막대 최상단에 전체 합산 시간을 [ *****h ] 형태로 추가
         fig_bar.add_trace(go.Scatter(
@@ -99,7 +100,8 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         fig_line.add_trace(go.Bar(x=['2025년 기준', '2026년 기준'], y=[req_ppl_2025, req_ppl_2026],
                                    text=[f"팀원 필요 {req_ppl_2025:.1f}명", f"팀원 필요 {req_ppl_2026:.1f}명"], textposition='auto', marker_color=['#ff7f0e', '#FF5A5F']))
         fig_line.add_hline(y=10, line_dash="dash", line_color="red", annotation_text="현재 팀원 정원 (10명)", annotation_position="bottom right")
-        fig_line.update_layout(title="표준근무시간 기준 적정 필요 인원 (팀원 한정)", height=400)
+        # 제목 (팀원 한정) -> (팀장 제외)로 수정
+        fig_line.update_layout(title="표준근무시간 기준 적정 필요 인원 (팀장 제외)", height=400)
         st.plotly_chart(fig_line, use_container_width=True)
 
     st.divider()
