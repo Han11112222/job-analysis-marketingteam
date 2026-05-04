@@ -130,19 +130,19 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.markdown("• 공동주택공급관리 (-1,594h)")
         st.markdown("• 산업용마케팅 (-666h)")
         
+    # (수정됨) 영업활성화를 과업 기호로 수정하고 하위 넘버링 적용
     with col_ra:
         st.success("📈 **Raise (증가)**\n\n핵심 전략 및 기획에 역량 집중")
         st.markdown("• 마케팅전략기획 (+230h)")
-        st.markdown("• 영업활성화 (+230h)")
-        st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 데이터 분석 및 시각화 결과 공유")
-        st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;- 시스템 유지 보수")
+        st.markdown("&nbsp;&nbsp;- 영업활성화")
+        st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;1) 데이터 분석 및 시각화 결과 공유")
+        st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;2) 시스템 유지 보수")
         
     with col_c:
         st.info("💡 **Create (창조)**\n\n기능 통합형 신규 마케팅 체계 구축")
         st.markdown("• 업무(영업)용 마케팅 (+3,194h)")
         st.write("  *(업무/영업용 일원화 신설)*")
 
-    # (수정됨) 현황, 극복 전략, 향후 집중 방향의 디테일한 코멘트 수정
     st.info(f"""
     🚀 **[Conclusion & Action Plan]**
     * **현황:** 현재 마케팅팀은 타이트한 실무 인원(실제 10명 vs 필요 {req_ppl_2026:.1f}명)으로 운영 중입니다.
