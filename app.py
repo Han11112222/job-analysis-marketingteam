@@ -140,7 +140,6 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         st.write("+ 업무(영업)용 마케팅 (+3,194h)")
         st.write("  *(업무/영업용 일원화 신설)*")
 
-    # (수정됨) 결론을 한 줄이 아닌 개조식(리스트형)으로 심플하게 정리
     st.info(f"""
     🚀 **[Conclusion & Action Plan]**
     * **현황:** 현재 마케팅팀은 타이트한 실무 인원(실제 10명 vs 필요 {req_ppl_2026:.1f}명)으로 운영 중입니다.
@@ -157,7 +156,6 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     
     st.markdown("2025년 대비 2026년의 수행시간 증감 내역과, 현재(26년) 기준 직무/책무별 세부 수준을 확인하실 수 있습니다.")
     
-    # 2026년 책무별 분석표 생성
     agg_26 = df_2026.groupby(['직무명', '책무명']).agg(
         과업수=('과업명', 'count'),
         연간수행시간=('수행시간', 'sum'),
@@ -166,16 +164,13 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         숙련도=('숙련도', 'mean')
     ).reset_index()
 
-    # (수정됨) 25년/26년 증감 데이터 병합을 위한 전처리
     comp_df = diff_df.reset_index()
-    # agg_26 데이터프레임에 25년 데이터와 증감 데이터 합치기
     agg_26 = pd.merge(agg_26, comp_df, on='책무명', how='left')
     agg_26 = agg_26.rename(columns={'2025년(h)': '25년 수행시간', '2026년(h)': '26년 수행시간'})
     
     total_hours_26 = agg_26['연간수행시간'].sum()
     agg_26['업무량 구성비(%)'] = (agg_26['연간수행시간'] / total_hours_26 * 100).round(1)
 
-    # 최빈값(가장 많이 등장하는 등급) 구하기
     def get_mode(x):
         return x.mode().iloc[0] if not x.mode().empty else None
 
@@ -186,30 +181,25 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
     agg_26['난이도'] = agg_26['난이도'].round(1)
     agg_26['숙련도'] = agg_26['숙련도'].round(1)
 
-    # (수정됨) 컬럼 순서 재배치 (25년, 26년, 증감 컬럼 추가)
     cols = ['직무명', '책무명', '과업수', '25년 수행시간', '26년 수행시간', '증감(h)', '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
     agg_26 = agg_26[cols].sort_values(['직무명', '26년 수행시간'], ascending=[True, False])
     
-    # 색상 적용 함수 (증감)
     def color_negative_red(val):
         if pd.isna(val): return ''
         color = 'red' if val < 0 else 'blue' if val > 0 else 'black'
         return f'color: {color}'
 
-    # 데이터프레임 시각화
+    # 에러 수정 완료: applymap() -> map() 으로 변경
     st.dataframe(agg_26.style.format({
         '25년 수행시간': '{:,.0f}', '26년 수행시간': '{:,.0f}', '증감(h)': '{:,.0f}',
         '중요도': '{:.1f}', '난이도': '{:.1f}', '숙련도': '{:.1f}'
-    }).applymap(color_negative_red, subset=['증감(h)']), hide_index=True, use_container_width=True)
+    }).map(color_negative_red, subset=['증감(h)']), hide_index=True, use_container_width=True)
 
     st.markdown("<br>**[ 2025년 vs 2026년 책무별 수행시간 변동 비교 ]**", unsafe_allow_html=True)
     
-    # 증감이 0이 아닌 유의미한 항목만 필터링하여 시각화
     plot_df = comp_df[(comp_df['2025년(h)'] > 0) | (comp_df['2026년(h)'] > 0)]
-    # 세로형 그래프를 위해 값이 큰 순서대로 내림차순 정렬
     plot_df = plot_df.sort_values(by='2026년(h)', ascending=False)
     
-    # (수정됨) Plotly Grouped Bar Chart 작성 (세로형으로 변경)
     fig_comp = go.Figure()
     fig_comp.add_trace(go.Bar(
         x=plot_df['책무명'], y=plot_df['2025년(h)'],
@@ -225,7 +215,7 @@ if os.path.exists(file_2025) and os.path.exists(file_2026):
         height=500,
         xaxis_title="책무명",
         yaxis_title="연간 과업 수행시간 (Hours)",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1) # 레전드를 위로 이동
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     st.plotly_chart(fig_comp, use_container_width=True)
 
