@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import os
+import unicodedata
 
 # 1. 페이지 설정
 st.set_page_config(page_title="마케팅팀 직무분석 (ERRC)", layout="wide")
 
 st.title("📊 마케팅팀 직무 및 적정 인원 분석 (2026년 상반기 vs 2026년 하반기)")
 st.markdown("""
-본 대시보드는 2026년 상반기 대비 하반기 마케팅팀의 **실제 과업 수행 시간**을 바탕으로 **적정 필요 인원**을 산출하고,  
+본 대시보드는 2026년 상반기 대비 하반기 마케팅팀의 **실제 과업 수행 시간**을 바탕으로 **적정 필요 인원**을 산출하고,
 조직 개편에 따른 직무 변화를 **ERRC(제거/감소/증가/창조)** 관점에서 분석한 자료입니다. (2025년 자료는 참고용으로 함께 표기)
 """)
 
@@ -43,14 +44,27 @@ def load_data(file_path):
     return df.dropna(subset=['수행시간'])
 
 # 3. 데이터 불러오기 및 계산
-file_2025 = "직무현황표_20250515_2025B_마케팅팀.xlsx"
-file_2026A = "직무현황표_20260408_2026A_마케팅팀.xlsx"   # 2026년 상반기
-file_2026B = "직무현황표_20261012_2026B_마케팅팀.xlsx"   # 2026년 하반기 (※ 깃허브에 올린 실제 파일명으로 맞춰주세요)
+# ※ 한글 파일명은 올린 환경에 따라 내부 글자 구성(NFC/NFD)이 달라 정확히 일치하지 않을 수 있어,
+#    파일명에 포함된 구분 키워드(_2025B_ / _2026A_ / _2026B_)로 자동 탐색합니다.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def find_file(keyword):
+    matches = []
+    for f in os.listdir(BASE_DIR):
+        n = unicodedata.normalize('NFC', f)
+        if n.endswith('.xlsx') and not n.startswith('~$') and keyword in n:
+            matches.append(f)
+    # 같은 키워드 파일이 여러 개면 파일명이 가장 늦은(최신 날짜) 파일 사용
+    return os.path.join(BASE_DIR, sorted(matches)[-1]) if matches else None
+
+file_2025 = find_file('_2025B_')     # 2025년
+file_2026A = find_file('_2026A_')    # 2026년 상반기
+file_2026B = find_file('_2026B_')    # 2026년 하반기
 
 LBL_25, LBL_A, LBL_B = '2025년', '2026년 상반기', '2026년 하반기'
 COLOR_25, COLOR_A, COLOR_B = '#1f77b4', '#00A699', '#8E44AD'
 
-if all(os.path.exists(f) for f in [file_2025, file_2026A, file_2026B]):
+if all([file_2025, file_2026A, file_2026B]):
     df_2025 = load_data(file_2025)
     df_2026A = load_data(file_2026A)
     df_2026B = load_data(file_2026B)
@@ -314,4 +328,7 @@ if all(os.path.exists(f) for f in [file_2025, file_2026A, file_2026B]):
         hide_index=True, use_container_width=True)
 
 else:
-    st.warning("지정된 엑셀 파일을 찾을 수 없습니다. 파일명이 깃허브 코드와 동일한지 확인해주세요.")
+    st.warning("지정된 엑셀 파일을 찾을 수 없습니다. 파일명에 _2025B_ / _2026A_ / _2026B_ 가 포함되어 있는지 확인해주세요.")
+    missing = [k for k, v in [('_2025B_ (2025년)', file_2025), ('_2026A_ (2026년 상반기)', file_2026A), ('_2026B_ (2026년 하반기)', file_2026B)] if not v]
+    st.write("찾지 못한 파일:", missing)
+    st.write("현재 폴더의 파일 목록:", sorted(os.listdir(BASE_DIR)))
