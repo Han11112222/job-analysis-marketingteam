@@ -8,10 +8,11 @@ import unicodedata
 st.set_page_config(page_title="마케팅팀 직무분석 (ERRC)", layout="wide")
 
 st.title("📊 마케팅팀 직무 및 적정 인원 분석 (2026년 상반기 vs 2026년 하반기)")
-st.markdown("""
-본 대시보드는 2026년 상반기 대비 하반기 마케팅팀의 **실제 과업 수행 시간**을 바탕으로 **적정 필요 인원**을 산출하고,
-조직 개편에 따른 직무 변화를 **ERRC(제거/감소/증가/창조)** 관점에서 분석한 자료입니다. (2025년 자료는 참고용으로 함께 표기)
-""")
+st.markdown(
+    "2026년 상반기 대비 하반기 마케팅팀의 **실제 과업 수행 시간**을 바탕으로 **적정 필요 인원**을 산출합니다.  \n"
+    "조직 개편에 따른 직무 변화는 **ERRC(제거/감소/증가/창조)** 관점에서 분석했습니다.  \n"
+    "※ 2025년 자료는 참고용으로 함께 표기합니다."
+)
 
 st.info("""
 **[주요 변화]**
@@ -87,12 +88,24 @@ CHART_H = 600          # 기존 400 → 600 (1.5배)
 PLOT_CFG = {'displayModeBar': False}
 
 
-def style_fig(fig, title, height=CHART_H):
+def chart_title(text, toggle_label=None):
+    """그래프 제목 행 (오른쪽 끝에 선택적으로 토글 배치) - 두 그래프의 제목 행 높이를 동일하게 맞춤"""
+    t_left, t_right = st.columns([3, 1])
+    t_left.markdown(
+        f"<div style='min-height:44px;display:flex;align-items:center;font-size:1.1rem;font-weight:700;color:#0F172A;'>{text}</div>",
+        unsafe_allow_html=True
+    )
+    if toggle_label:
+        with t_right:
+            return st.toggle(toggle_label, value=False, help="켜면 막대가 직무별로 나뉘어 표시됩니다.")
+    return False
+
+
+def style_fig(fig, height=CHART_H):
     """그래프 공통 스타일 (여백/폰트/그리드/범례)"""
     fig.update_layout(
         template="plotly_white", font=FONT, height=height,
-        title=dict(text=f"<b>{title}</b>", x=0, xanchor="left", y=0.97, yanchor="top", font=dict(size=17)),
-        margin=dict(t=110, b=50, l=60, r=130),
+        margin=dict(t=90, b=50, l=60, r=130),
         legend=dict(orientation="h", x=0, y=1.0, yanchor="bottom", font=dict(size=12)),
         plot_bgcolor="white", paper_bgcolor="white",
         hoverlabel=dict(font=dict(family=FONT["family"], size=13)),
@@ -102,12 +115,17 @@ def style_fig(fig, title, height=CHART_H):
     return fig
 
 
-def add_ref_line(fig, y, label):
-    """가로 점선 기준선 + 우측 라벨"""
-    fig.add_hline(y=y, line_dash="dash", line_color=ACCENT_RED, line_width=2)
-    fig.add_annotation(xref="paper", yref="y", x=1.0, y=y, xanchor="left", xshift=8,
-                       text=label, showarrow=False, align="left",
-                       font=dict(color=ACCENT_RED, size=12))
+def add_ref_line(fig, y, label=None, x1=None):
+    """가로 점선 기준선 (+ 우측 라벨). x1을 주면 -0.5 ~ x1 구간까지만 선을 긋고 라벨은 생략"""
+    if x1 is None:
+        fig.add_hline(y=y, line_dash="dash", line_color=ACCENT_RED, line_width=2)
+    else:
+        fig.add_shape(type="line", xref="x", yref="y", x0=-0.5, x1=x1, y0=y, y1=y,
+                      line=dict(color=ACCENT_RED, dash="dash", width=2))
+    if label:
+        fig.add_annotation(xref="paper", yref="y", x=1.0, y=y, xanchor="left", xshift=8,
+                           text=label, showarrow=False, align="left",
+                           font=dict(color=ACCENT_RED, size=12))
 
 if all([file_2025, file_2026A, file_2026B]):
     df_2025 = load_data(file_2025)
@@ -141,21 +159,36 @@ if all([file_2025, file_2026A, file_2026B]):
 * 현재 팀원 배정({CUR_PPL}명)은 필요 인원 대비 **{req_ppl[2] - CUR_PPL:.1f}명 부족**한 상태이며, 웹앱 자동화 같은 극한의 효율화 없이는 정상적인 업무 수행이 불가능한 수치입니다.
 """)
 
-    show_job = st.toggle("직무별 구분", value=False, help="켜면 왼쪽 그래프의 막대가 직무별로 나뉘어 표시됩니다.")
-
     col1, col2 = st.columns(2)
     with col1:
+        # 제목 행의 오른쪽 끝에 '직무별 구분' 토글 배치
+        show_job = chart_title("연간 과업 수행시간 비교 (누적)", toggle_label="직무별 구분")
         fig_bar = go.Figure()
+        DIFF_LABEL = "증감<br>(상반기→하반기)"      # 직무별 구분 ON일 때 맨 우측에 붙는 막대
+        diffs = {}                                   # 직무별 증감(하반기 - 상반기)
 
         def add_stack(name, vals, color):
             fig_bar.add_trace(go.Bar(
-                name=name, x=labels, y=vals, marker_color=color,
+                name=name, x=labels, y=vals, marker_color=color, legendgroup=name,
                 marker_line=dict(color="white", width=1.5),
                 text=[f"{v:,.0f}h" if v >= 500 else "" for v in vals],
                 textposition="inside", insidetextanchor="middle",
                 textfont=dict(size=12, color="white"),
                 hovertemplate="%{x}<br>" + name + ": %{y:,.0f}h<extra></extra>"
             ))
+            if show_job:
+                diff = vals[2] - vals[1]             # 상반기 → 하반기 증감
+                diffs[name] = diff
+                if abs(diff) >= 1:
+                    fig_bar.add_trace(go.Bar(
+                        name=name, x=[DIFF_LABEL], y=[diff], yaxis="y2", marker_color=color,
+                        legendgroup=name, showlegend=False,
+                        marker_line=dict(color="white", width=1.5),
+                        text=[f"{diff:+,.0f}h" if abs(diff) >= 250 else ""],
+                        textposition="inside", insidetextanchor="middle",
+                        textfont=dict(size=12, color="white"),
+                        hovertemplate="상반기→하반기<br>" + name + ": %{y:+,.0f}h<extra></extra>"
+                    ))
 
         if show_job:
             all_jobs = pd.concat([d['직무명'] for d in dfs]).dropna().unique().tolist()
@@ -183,20 +216,43 @@ if all([file_2025, file_2026A, file_2026B]):
             textfont=dict(size=14, color="#0F172A")
         ))
 
-        # 현재 팀원 10명 기준 가용시간 점선 (범례 + 우측 라벨)
+        # 현재 팀원 10명 기준 가용시간 점선 (범례 + 라벨)
         fig_bar.add_trace(go.Scatter(
             x=[None], y=[None], mode="lines",
             line=dict(color=ACCENT_RED, dash="dash", width=2),
             name=f"현재 팀원 {CUR_PPL}명 기준 ({cap_hours:,.0f}h)"
         ))
-        add_ref_line(fig_bar, cap_hours, f"팀원 {CUR_PPL}명 기준<br><b>{cap_hours:,.0f}h</b>")
 
-        style_fig(fig_bar, "연간 과업 수행시간 비교 (누적)")
-        fig_bar.update_layout(barmode="stack", bargap=0.35)
+        style_fig(fig_bar)
+        fig_bar.update_layout(barmode="relative", bargap=0.35)   # relative: 증가분은 위로, 감소분은 아래로 쌓임
         fig_bar.update_yaxes(range=[0, max(total + [cap_hours]) * 1.12], tickformat=",", title_text="연간 수행시간 (h)")
+
+        if show_job:
+            # 기준선은 상반기/하반기 막대 구간까지만, 증감 막대는 별도 축(y2)과 음영 영역으로 구분
+            add_ref_line(fig_bar, cap_hours, x1=2.5)
+            pos = sum(v for v in diffs.values() if v > 0)
+            neg = -sum(v for v in diffs.values() if v < 0)
+            m = max(pos, neg, 300) * 1.4
+            fig_bar.update_layout(
+                yaxis2=dict(overlaying="y", side="right", range=[-m, m], showticklabels=False,
+                            showgrid=False, zeroline=False, ticks="", showline=False),
+                margin=dict(t=90, b=50, l=60, r=30),
+            )
+            fig_bar.update_xaxes(categoryorder="array", categoryarray=labels + [DIFF_LABEL])
+            fig_bar.add_vrect(x0=2.5, x1=3.5, fillcolor="#F1F5F9", opacity=0.9, line_width=0, layer="below")
+            fig_bar.add_shape(type="line", xref="x", yref="y2", x0=2.5, x1=3.5, y0=0, y1=0,
+                              line=dict(color="#94A3B8", width=1.5))
+            net = sum(diffs.values())
+            fig_bar.add_annotation(xref="x", yref="paper", x=DIFF_LABEL, y=0.01, yanchor="bottom",
+                                   text=f"<b>합계 {net:+,.0f}h</b>", showarrow=False,
+                                   font=dict(size=13, color="#0F172A"))
+        else:
+            add_ref_line(fig_bar, cap_hours, f"팀원 {CUR_PPL}명 기준<br><b>{cap_hours:,.0f}h</b>")
+
         st.plotly_chart(fig_bar, use_container_width=True, config=PLOT_CFG)
 
     with col2:
+        chart_title("표준근무시간 기준 적정 필요 인원 (팀장 제외)")
         fig_line = go.Figure(go.Bar(
             x=[f"{l} 기준" for l in labels], y=req_ppl,
             marker_color=[COLOR_25, COLOR_A, COLOR_B],
@@ -205,7 +261,7 @@ if all([file_2025, file_2026A, file_2026B]):
             hovertemplate="%{x}<br>팀원 필요 %{y:.1f}명<extra></extra>"
         ))
         add_ref_line(fig_line, CUR_PPL, f"현재 팀원 정원<br><b>{CUR_PPL}명</b>")
-        style_fig(fig_line, "표준근무시간 기준 적정 필요 인원 (팀장 제외)")
+        style_fig(fig_line)
         fig_line.update_layout(bargap=0.4, showlegend=False)
         fig_line.update_yaxes(range=[0, max(req_ppl + [CUR_PPL]) * 1.18], title_text="필요 인원 (명)")
         try:
@@ -415,6 +471,6 @@ if all([file_2025, file_2026A, file_2026B]):
 
 else:
     st.warning("지정된 엑셀 파일을 찾을 수 없습니다. 파일명에 _2025B_ / _2026A_ / _2026B_ 가 포함되어 있는지 확인해주세요.")
-    missing = [k for k, v in [('_2025B_ (2025년)', file_2025), ('_2026A_ (2026년)', file_2026A), ('_2026B_ (2026년 하반기)', file_2026B)] if not v]
+    missing = [k for k, v in [('_2025B_ (2025년)', file_2025), ('_2026A_ (2026년 상반기)', file_2026A), ('_2026B_ (2026년 하반기)', file_2026B)] if not v]
     st.write("찾지 못한 파일:", missing)
     st.write("현재 폴더의 파일 목록:", sorted(os.listdir(BASE_DIR)))
