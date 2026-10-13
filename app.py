@@ -115,13 +115,9 @@ def style_fig(fig, height=CHART_H):
     return fig
 
 
-def add_ref_line(fig, y, label=None, x1=None):
-    """가로 점선 기준선 (+ 우측 라벨). x1을 주면 -0.5 ~ x1 구간까지만 선을 긋고 라벨은 생략"""
-    if x1 is None:
-        fig.add_hline(y=y, line_dash="dash", line_color=ACCENT_RED, line_width=2)
-    else:
-        fig.add_shape(type="line", xref="x", yref="y", x0=-0.5, x1=x1, y0=y, y1=y,
-                      line=dict(color=ACCENT_RED, dash="dash", width=2))
+def add_ref_line(fig, y, label=None):
+    """가로 점선 기준선 (+ 필요 시 우측 라벨)"""
+    fig.add_hline(y=y, line_dash="dash", line_color=ACCENT_RED, line_width=2)
     if label:
         fig.add_annotation(xref="paper", yref="y", x=1.0, y=y, xanchor="left", xshift=8,
                            text=label, showarrow=False, align="left",
@@ -164,36 +160,24 @@ if all([file_2025, file_2026A, file_2026B]):
         # 제목 행의 오른쪽 끝에 '직무별 구분' 토글 배치
         show_job = chart_title("연간 과업 수행시간 비교 (누적)", toggle_label="직무별 구분")
         fig_bar = go.Figure()
-        DIFF_LABEL = "증감<br>(상반기→하반기)"      # 직무별 구분 ON일 때 맨 우측에 붙는 막대
-        diffs = {}                                   # 직무별 증감(하반기 - 상반기)
+        job_notes = []          # (하반기 막대 내 세그먼트 중앙 높이, 직무별 증감) -> 오른쪽에 숫자로 표시
+        cum_b = 0               # 하반기 막대의 누적 높이
 
         def add_stack(name, vals, color):
             fig_bar.add_trace(go.Bar(
-                name=name, x=labels, y=vals, marker_color=color, legendgroup=name,
+                name=name, x=labels, y=vals, marker_color=color,
                 marker_line=dict(color="white", width=1.5),
                 text=[f"{v:,.0f}h" if v >= 500 else "" for v in vals],
                 textposition="inside", insidetextanchor="middle",
                 textfont=dict(size=12, color="white"),
                 hovertemplate="%{x}<br>" + name + ": %{y:,.0f}h<extra></extra>"
             ))
-            if show_job:
-                diff = vals[2] - vals[1]             # 상반기 → 하반기 증감
-                diffs[name] = diff
-                if abs(diff) >= 1:
-                    fig_bar.add_trace(go.Bar(
-                        name=name, x=[DIFF_LABEL], y=[diff], yaxis="y2", marker_color=color,
-                        legendgroup=name, showlegend=False,
-                        marker_line=dict(color="white", width=1.5),
-                        text=[f"{diff:+,.0f}h" if abs(diff) >= 250 else ""],
-                        textposition="inside", insidetextanchor="middle",
-                        textfont=dict(size=12, color="white"),
-                        hovertemplate="상반기→하반기<br>" + name + ": %{y:+,.0f}h<extra></extra>"
-                    ))
 
         if show_job:
             all_jobs = pd.concat([d['직무명'] for d in dfs]).dropna().unique().tolist()
             job_order = [j for j in custom_sort_order if j != '팀리더' and j in all_jobs]
             job_order += [j for j in all_jobs if j not in custom_sort_order]
+            stack_list = []
             extra_i = 0
             for job in job_order:                      # 팀원 직무를 아래부터 쌓고
                 vals = [d[d['직무명'] == job]['수행시간'].sum() for d in dfs]
@@ -203,8 +187,12 @@ if all([file_2025, file_2026A, file_2026B]):
                 if color is None:
                     color = EXTRA_COLORS[extra_i % len(EXTRA_COLORS)]
                     extra_i += 1
-                add_stack(job, vals, color)
-            add_stack('팀리더', leader, JOB_COLORS['팀리더'])   # 팀리더는 맨 위
+                stack_list.append((job, vals, color))
+            stack_list.append(('팀리더', leader, JOB_COLORS['팀리더']))   # 팀리더는 맨 위
+            for name, vals, color in stack_list:
+                add_stack(name, vals, color)
+                job_notes.append((cum_b + vals[2] / 2, vals[2] - vals[1]))   # 하반기 - 상반기
+                cum_b += vals[2]
         else:
             add_stack('팀원(실무)', staff, COLOR_A)
             add_stack('팀리더', leader, JOB_COLORS['팀리더'])
@@ -224,28 +212,30 @@ if all([file_2025, file_2026A, file_2026B]):
         ))
 
         style_fig(fig_bar)
-        fig_bar.update_layout(barmode="relative", bargap=0.35)   # relative: 증가분은 위로, 감소분은 아래로 쌓임
+        fig_bar.update_layout(barmode="stack", bargap=0.35)
         fig_bar.update_yaxes(range=[0, max(total + [cap_hours]) * 1.12], tickformat=",", title_text="연간 수행시간 (h)")
 
         if show_job:
-            # 기준선은 상반기/하반기 막대 구간까지만, 증감 막대는 별도 축(y2)과 음영 영역으로 구분
-            add_ref_line(fig_bar, cap_hours, x1=2.5)
-            pos = sum(v for v in diffs.values() if v > 0)
-            neg = -sum(v for v in diffs.values() if v < 0)
-            m = max(pos, neg, 300) * 1.4
-            fig_bar.update_layout(
-                yaxis2=dict(overlaying="y", side="right", range=[-m, m], showticklabels=False,
-                            showgrid=False, zeroline=False, ticks="", showline=False),
-                margin=dict(t=90, b=50, l=60, r=30),
-            )
-            fig_bar.update_xaxes(categoryorder="array", categoryarray=labels + [DIFF_LABEL])
-            fig_bar.add_vrect(x0=2.5, x1=3.5, fillcolor="#F1F5F9", opacity=0.9, line_width=0, layer="below")
-            fig_bar.add_shape(type="line", xref="x", yref="y2", x0=2.5, x1=3.5, y0=0, y1=0,
-                              line=dict(color="#94A3B8", width=1.5))
-            net = sum(diffs.values())
-            fig_bar.add_annotation(xref="x", yref="paper", x=DIFF_LABEL, y=0.01, yanchor="bottom",
-                                   text=f"<b>합계 {net:+,.0f}h</b>", showarrow=False,
-                                   font=dict(size=13, color="#0F172A"))
+            # 점선 라벨은 생략(범례에 표시)하고, 오른쪽 여백에 '상반기 대비 직무별 증감'을 숫자로만 표시
+            add_ref_line(fig_bar, cap_hours)
+            fig_bar.update_layout(margin=dict(t=90, b=50, l=60, r=110))
+
+            def fmt_diff(v):
+                return "0h" if abs(v) < 0.5 else f"{v:+,.0f}h"
+
+            def diff_color(v):
+                return "#2563EB" if v > 0 else ("#E11D48" if v < 0 else "#64748B")
+
+            fig_bar.add_annotation(xref="paper", yref="paper", x=1.0, y=1.0, xanchor="left", yanchor="top", xshift=10,
+                                   text="<b>상반기 대비</b>", showarrow=False, font=dict(size=12, color="#64748B"))
+            for y_mid, diff in job_notes:
+                fig_bar.add_annotation(xref="paper", yref="y", x=1.0, y=y_mid, xanchor="left", xshift=10,
+                                       text=f"<b>{fmt_diff(diff)}</b>", showarrow=False,
+                                       font=dict(size=14, color=diff_color(diff)))
+            net = sum(d for _, d in job_notes)
+            fig_bar.add_annotation(xref="paper", yref="y", x=1.0, y=total[2], xanchor="left", xshift=10, yshift=16,
+                                   text=f"<b>합계 {fmt_diff(net)}</b>", showarrow=False,
+                                   font=dict(size=14, color=diff_color(net)))
         else:
             add_ref_line(fig_bar, cap_hours, f"팀원 {CUR_PPL}명 기준<br><b>{cap_hours:,.0f}h</b>")
 
