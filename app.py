@@ -162,6 +162,22 @@ if all([file_2025, file_2026A, file_2026B]):
     CUR_PPL = PPL_BY_PERIOD[2]          # 현재(26.09) 팀원 정원
     PPL_25 = PPL_BY_PERIOD[0]           # 25.09 당시 팀원 정원 (팀장 제외 12명)
     cap_hours = CUR_PPL * std_hours     # 현재 팀원 10명 기준 연간 가용시간
+    cap_25 = PPL_25 * std_hours         # 25.09 당시 팀원 12명 기준 연간 가용시간
+
+    def add_cap_lines(fig, right_label=True):
+        """2025년 막대는 12명 기준, 2026년 막대는 10명 기준 가용시간 점선"""
+        line_style = dict(color=ACCENT_RED, dash="dash", width=2)
+        fig.add_shape(type="line", xref="x", yref="y", x0=-0.5, x1=0.5, y0=cap_25, y1=cap_25, line=line_style)
+        fig.add_shape(type="line", xref="x", yref="y", x0=0.5, x1=2.5, y0=cap_hours, y1=cap_hours, line=line_style)
+        # 12명 기준 라벨 (2025년 막대 위)
+        fig.add_annotation(xref="x", yref="y", x=0, y=cap_25, yshift=12,
+                           text=f"<b>{PPL_25}명 기준 {cap_25:,.0f}h</b>", showarrow=False,
+                           font=dict(color="white", size=12))
+        # 10명 기준 라벨 (우측 끝)
+        if right_label:
+            fig.add_annotation(xref="paper", yref="y", x=1.0, y=cap_hours, xanchor="left", xshift=8,
+                               text=f"팀원 {CUR_PPL}명 기준<br><b>{cap_hours:,.0f}h</b>", showarrow=False,
+                               align="left", font=dict(color=ACCENT_RED, size=12))
     req_ppl = [s / std_hours for s in staff]
 
     if cmp_25:
@@ -234,20 +250,25 @@ if all([file_2025, file_2026A, file_2026B]):
             textfont=dict(size=14, color="#0F172A")
         ))
 
-        # 현재 팀원 10명 기준 가용시간 점선 (범례 + 라벨)
+        # 팀원 정원 기준 가용시간 점선 (범례): 2025년=12명, 2026년=10명
         fig_bar.add_trace(go.Scatter(
             x=[None], y=[None], mode="lines",
             line=dict(color=ACCENT_RED, dash="dash", width=2),
-            name=f"현재 팀원 {CUR_PPL}명 기준 ({cap_hours:,.0f}h)"
+            name=f"2025년 팀원 {PPL_25}명 기준 ({cap_25:,.0f}h)"
+        ))
+        fig_bar.add_trace(go.Scatter(
+            x=[None], y=[None], mode="lines",
+            line=dict(color=ACCENT_RED, dash="dash", width=2),
+            name=f"2026년 팀원 {CUR_PPL}명 기준 ({cap_hours:,.0f}h)"
         ))
 
         style_fig(fig_bar)
         fig_bar.update_layout(barmode="stack", bargap=0.35)
-        fig_bar.update_yaxes(range=[0, max(total + [cap_hours]) * 1.12], tickformat=",", title_text="연간 수행시간 (h)")
+        fig_bar.update_yaxes(range=[0, max(total + [cap_hours, cap_25]) * 1.12], tickformat=",", title_text="연간 수행시간 (h)")
 
         if show_job:
             # 점선 라벨은 생략(범례에 표시)하고, 오른쪽 여백에 '비교기준 대비 직무별 증감'을 숫자로만 표시
-            add_ref_line(fig_bar, cap_hours)
+            add_cap_lines(fig_bar, right_label=False)
             fig_bar.update_layout(margin=dict(t=90, b=50, l=60, r=110))
 
             def fmt_diff(v):
@@ -267,7 +288,7 @@ if all([file_2025, file_2026A, file_2026B]):
                                    text=f"<b>합계 {fmt_diff(net)}</b>", showarrow=False,
                                    font=dict(size=14, color=diff_color(net)))
         else:
-            add_ref_line(fig_bar, cap_hours, f"팀원 {CUR_PPL}명 기준<br><b>{cap_hours:,.0f}h</b>")
+            add_cap_lines(fig_bar, right_label=True)
 
         st.plotly_chart(fig_bar, use_container_width=True, config=PLOT_CFG)
 
