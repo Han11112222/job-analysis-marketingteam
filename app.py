@@ -559,6 +559,20 @@ if all([file_2025, file_2026A, file_2026B]):
         f"과업시간과 적정 필요 인원을 나누어 비교합니다. (증감 기준: {BASE_TAG} → 26.09)"
     )
 
+    # ★ 우측 상단: '세부보기' 토글 (켜면 지정 과업을 막대 안에 별도 표기 + 책무 내 과업 상세표 노출)
+    DETAIL_DUTY = '마케팅전략기획'                       # 부연설명할 책무
+    DETAIL_TASK = '업무프로세스 개선 과제 발굴 및 기획'   # 부연설명할 과업
+    _task_key = DETAIL_TASK.replace(' ', '')
+
+    def is_task(series):
+        """과업명 공백 차이와 무관하게 대상 과업 여부 판별"""
+        return series.astype(str).str.replace(' ', '', regex=False).str.contains(_task_key, regex=False)
+
+    _sp, _tg = st.columns([5, 1])
+    with _tg:
+        show_detail = st.toggle("세부보기", key="show_detail",
+                                help=f"켜면 '{DETAIL_DUTY}' 책무의 '{DETAIL_TASK}' 과업 시간을 막대 안에 따로 표시하고 과업 상세표를 보여줍니다.")
+
     TEAM_JOBS = {
         '기획부팀': ['영업기획/관리', '일반관리'],
         '마케팅부팀': ['주택용 수요개발', '주택용 외 수요개발'],
@@ -643,14 +657,29 @@ if all([file_2025, file_2026A, file_2026B]):
             fig_team = go.Figure()
             for job in jobs:
                 vals = [d[d['직무명'] == job]['수행시간'].sum() for d in dfs]
+                # 세부보기: 해당 직무 안의 지정 과업 시간을 따로 분리
+                tvals = [d[(d['직무명'] == job) & is_task(d['과업명'])]['수행시간'].sum() for d in dfs]
+                split = show_detail and sum(tvals) > 0
+                main_vals = [v - t for v, t in zip(vals, tvals)] if split else vals
                 fig_team.add_trace(go.Bar(
-                    name=job, x=labels, y=vals, marker_color=JOB_COLORS.get(job, '#64748B'),
+                    name=job, x=labels, y=main_vals, marker_color=JOB_COLORS.get(job, '#64748B'),
                     marker_line=dict(color="white", width=1.5),
-                    text=[f"{v:,.0f}h" if v > 0 else "" for v in vals],
+                    text=[f"{v:,.0f}h" if v > 0 else "" for v in main_vals],
                     textposition="inside", insidetextanchor="middle",
                     textfont=dict(size=12, color="white"),
                     hovertemplate="%{x}<br>" + job + ": %{y:,.0f}h<extra></extra>"
                 ))
+                if split:
+                    fig_team.add_trace(go.Bar(
+                        name=f"└ {DETAIL_TASK}", x=labels, y=tvals,
+                        marker=dict(color=JOB_COLORS.get(job, '#64748B'),
+                                    pattern=dict(shape="/", fgcolor="rgba(255,255,255,0.65)", size=7, solidity=0.35),
+                                    line=dict(color=ACCENT_RED, width=2)),
+                        text=[f"<b>{v:,.0f}h</b>" if v > 0 else "" for v in tvals],
+                        textposition="inside", insidetextanchor="middle",
+                        textfont=dict(size=12, color="white"),
+                        hovertemplate="%{x}<br>" + DETAIL_TASK + ": %{y:,.0f}h<extra></extra>"
+                    ))
             fig_team.add_trace(go.Scatter(
                 x=labels, y=hrs, mode="text", showlegend=False, hoverinfo="skip",
                 text=[f"<b>{v:,.0f}h</b>" for v in hrs], textposition="top center",
@@ -684,6 +713,17 @@ if all([file_2025, file_2026A, file_2026B]):
             fig_team.update_yaxes(range=[0, max(hrs + caps + [1]) * 1.15], tickformat=",", title_text="연간 수행시간 (h)")
             st.plotly_chart(fig_team, use_container_width=True, config=PLOT_CFG)
 
+            # 세부보기: 지정 과업의 연도별 추이 요약
+            if show_detail:
+                th = [d[d['직무명'].isin(jobs) & is_task(d['과업명'])]['수행시간'].sum() for d in dfs]
+                if sum(th) > 0:
+                    gr = (th[2] / th[0] - 1) * 100 if th[0] > 0 else 0
+                    st.info(
+                        f"📌 **[{DETAIL_DUTY}] {DETAIL_TASK}**  \n"
+                        f"{LBL_25} **{th[0]:,.0f}h** → {LBL_A} **{th[1]:,.0f}h** → {LBL_B} **{th[2]:,.0f}h**  "
+                        f"(2025년 대비 {th[2] - th[0]:+,.0f}h, {gr:+.0f}%)"
+                    )
+
             # 책무별 상세표
             t = duty_table(jobs)
             st.dataframe(
@@ -691,6 +731,32 @@ if all([file_2025, file_2026A, file_2026B]):
                     LBL_25: '{:,.0f}', LBL_A: '{:,.0f}', LBL_B: '{:,.0f}',
                     DIFF: '{:+,.0f}',
                 }).map(color_negative_red, subset=[DIFF]).apply(highlight_total_row, axis=1),
+                hide_index=True, use_container_width=True
+            )
+
+    # 세부보기: 지정 책무 내 과업별 수행시간 상세표
+    if show_detail:
+        st.markdown(f"#### 🔍 세부보기 · [{DETAIL_DUTY}] 책무 과업별 수행시간")
+        parts = [
+            d[d['책무명'] == DETAIL_DUTY].groupby('과업명', sort=False)['수행시간'].sum().rename(lbl)
+            for d, lbl in zip(dfs, labels)
+        ]
+        dt = pd.concat(parts, axis=1).fillna(0).reset_index()
+        if dt.empty:
+            st.write(f"'{DETAIL_DUTY}' 책무를 찾지 못했습니다.")
+        else:
+            dt[DIFF] = dt[LBL_B] - dt[BASE_LBL]
+            dt['★'] = dt['과업명'].apply(lambda x: '★' if _task_key in str(x).replace(' ', '') else '')
+            dt = dt[['★', '과업명'] + labels + [DIFF]]
+
+            def highlight_task(row):
+                if row['★'] == '★':
+                    return ['background-color: #FEF08A; font-weight: bold'] * len(row)
+                return [''] * len(row)
+
+            st.dataframe(
+                dt.style.format({LBL_25: '{:,.0f}', LBL_A: '{:,.0f}', LBL_B: '{:,.0f}', DIFF: '{:+,.0f}'})
+                  .map(color_negative_red, subset=[DIFF]).apply(highlight_task, axis=1),
                 hide_index=True, use_container_width=True
             )
 
