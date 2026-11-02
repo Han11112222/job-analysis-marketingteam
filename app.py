@@ -21,11 +21,8 @@ st.info("""
 """)
 
 # ★ 비교 기준 토글 (OFF: 26.03 → 26.09 / ON: 25.09 → 26.09)
-cmp_25 = st.toggle(
-    "'25.09 vs 26.09 비교",
-    value=False,
-    help="켜면 모든 증감(대비) 기준이 2026년 상반기(26.03)에서 2025년 9월(25.09)로 바뀝니다."
-)
+# ※ 토글 위젯은 1번 섹션 그래프 좌측 상단에 표시되며(key='cmp_25'), 여기서는 그 값을 먼저 읽어옵니다.
+cmp_25 = st.session_state.get('cmp_25', False)
 
 
 # 2. 데이터 로딩 및 전처리 함수 (헤더 2줄 처리)
@@ -201,6 +198,13 @@ if all([file_2025, file_2026A, file_2026B]):
 * 현재 팀원 배정({CUR_PPL}명)은 필요 인원 대비 **{req_ppl[2] - CUR_PPL:.1f}명 부족**한 상태이며, 웹앱 자동화 같은 극한의 효율화 없이는 정상적인 업무 수행이 불가능한 수치입니다.
 """)
 
+    # ★ 그래프 좌측 상단: '25.09 vs 26.09 비교' 토글
+    st.toggle(
+        "'25.09 vs 26.09 비교",
+        key='cmp_25',
+        help="켜면 모든 증감(대비) 기준이 2026년 상반기(26.03)에서 2025년 9월(25.09)로 바뀝니다."
+    )
+
     col1, col2 = st.columns(2)
     with col1:
         # 제목 행의 오른쪽 끝에 '직무별 구분' 토글 배치
@@ -301,8 +305,17 @@ if all([file_2025, file_2026A, file_2026B]):
             textfont=dict(size=15, color="#0F172A"),
             hovertemplate="%{x}<br>팀원 필요 %{y:.1f}명<extra></extra>"
         ))
-        # 현재 팀원 정원 (10명) - 전체 구간 점선
-        add_ref_line(fig_line, CUR_PPL, f"현재 팀원 정원<br><b>{CUR_PPL}명</b>")
+        # 현재 팀원 정원 (10명) - 2026년 막대 구간에만 점선 (2025년 막대는 12명 기준만 표시)
+        fig_line.add_shape(
+            type="line", xref="x", yref="y",
+            x0=0.5, x1=2.5, y0=CUR_PPL, y1=CUR_PPL,
+            line=dict(color=ACCENT_RED, dash="dash", width=2)
+        )
+        fig_line.add_annotation(
+            xref="paper", yref="y", x=1.0, y=CUR_PPL, xanchor="left", xshift=8,
+            text=f"현재 팀원 정원<br><b>{CUR_PPL}명</b>", showarrow=False, align="left",
+            font=dict(color=ACCENT_RED, size=12)
+        )
 
         # ★ 2025년 기준 막대에만 25.09 당시 팀원 정원(12명) 점선 표기
         fig_line.add_shape(
@@ -551,6 +564,11 @@ if all([file_2025, file_2026A, file_2026B]):
         '마케팅부팀': ['주택용 수요개발', '주택용 외 수요개발'],
     }
     TEAM_ICON = {'기획부팀': '🗂️', '마케팅부팀': '📣'}
+    # 시점별 팀 인원 (팀장 제외): [25.09, 26.03, 26.09]
+    TEAM_PPL = {
+        '기획부팀': [3, 3, 3],
+        '마케팅부팀': [9, 7, 7],
+    }
 
     def team_hours(d, jobs):
         return d[d['직무명'].isin(jobs)]['수행시간'].sum()
@@ -639,8 +657,31 @@ if all([file_2025, file_2026A, file_2026B]):
                 textfont=dict(size=14, color="#0F172A")
             ))
             style_fig(fig_team, height=450)
-            fig_team.update_layout(barmode="stack", bargap=0.35, margin=dict(t=70, b=50, l=60, r=30))
-            fig_team.update_yaxes(range=[0, max(hrs + [1]) * 1.15], tickformat=",", title_text="연간 수행시간 (h)")
+            fig_team.update_layout(barmode="stack", bargap=0.35, margin=dict(t=70, b=50, l=60, r=110))
+
+            # 팀 인원 기준 가용시간 점선 (시점별 인원이 같은 구간은 하나의 선으로 묶음)
+            ppl_list = TEAM_PPL[team]
+            caps = [p * std_hours for p in ppl_list]
+            segs = []
+            for i, p in enumerate(ppl_list):
+                if segs and segs[-1][2] == p:
+                    segs[-1][1] = i
+                else:
+                    segs.append([i, i, p])
+            for k, (s, e, p) in enumerate(segs):
+                y = p * std_hours
+                fig_team.add_shape(type="line", xref="x", yref="y", x0=s - 0.5, x1=e + 0.5, y0=y, y1=y,
+                                   line=dict(color=ACCENT_RED, dash="dash", width=2))
+                if k == len(segs) - 1:      # 마지막 구간: 우측 끝 라벨
+                    fig_team.add_annotation(xref="paper", yref="y", x=1.0, y=y, xanchor="left", xshift=8,
+                                            text=f"팀원 {p}명 기준<br><b>{y:,.0f}h</b>", showarrow=False,
+                                            align="left", font=dict(color=ACCENT_RED, size=12))
+                else:                       # 이전 구간: 막대 위 흰색 라벨
+                    fig_team.add_annotation(xref="x", yref="y", x=(s + e) / 2, y=y, yshift=12,
+                                            text=f"<b>{p}명 기준 {y:,.0f}h</b>", showarrow=False,
+                                            font=dict(color="white", size=12))
+
+            fig_team.update_yaxes(range=[0, max(hrs + caps + [1]) * 1.15], tickformat=",", title_text="연간 수행시간 (h)")
             st.plotly_chart(fig_team, use_container_width=True, config=PLOT_CFG)
 
             # 책무별 상세표
