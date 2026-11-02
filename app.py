@@ -11,7 +11,7 @@ st.title("📊 마케팅팀 직무 및 적정 인원 분석 (2026년 상반기 v
 st.markdown(
     "2026년 상반기 대비 하반기 마케팅팀의 **실제 과업 수행 시간**을 바탕으로 **적정 필요 인원**을 산출합니다.  \n"
     "조직 개편에 따른 직무 변화는 **ERRC(제거/감소/증가/창조)** 관점에서 분석했습니다.  \n"
-    "※ 2025년 자료는 참고용으로 함께 표기합니다."
+    "※ 2025년 자료는 참고용으로 함께 표기합니다. (상단 토글로 '25.09 ↔ '26.09 직접 비교 가능)"
 )
 
 st.info("""
@@ -19,6 +19,14 @@ st.info("""
 * **기획부팀 :** CS지원팀 업무 일부 추가
 * **마케팅부팀 :** (기존) 용도별 담당자 통합 → (현재) 용도별 담당자 분리
 """)
+
+# ★ 비교 기준 토글 (OFF: 26.03 → 26.09 / ON: 25.09 → 26.09)
+cmp_25 = st.toggle(
+    "'25.09 vs 26.09 비교",
+    value=False,
+    help="켜면 모든 증감(대비) 기준이 2026년 상반기(26.03)에서 2025년 9월(25.09)로 바뀝니다."
+)
+
 
 # 2. 데이터 로딩 및 전처리 함수 (헤더 2줄 처리)
 @st.cache_data
@@ -50,10 +58,12 @@ def load_data(file_path):
 
     return df.dropna(subset=['수행시간'])
 
+
 # 3. 데이터 불러오기 및 계산
 # ※ 한글 파일명은 올린 환경에 따라 내부 글자 구성(NFC/NFD)이 달라 정확히 일치하지 않을 수 있어,
 #    파일명에 포함된 구분 키워드(_2025B_ / _2026A_ / _2026B_)로 자동 탐색합니다.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 def find_file(keyword):
     matches = []
@@ -64,14 +74,26 @@ def find_file(keyword):
     # 같은 키워드 파일이 여러 개면 파일명이 가장 늦은(최신 날짜) 파일 사용
     return os.path.join(BASE_DIR, sorted(matches)[-1]) if matches else None
 
-file_2025 = find_file('_2025B_')     # 2025년
-file_2026A = find_file('_2026A_')    # 2026년 상반기
-file_2026B = find_file('_2026B_')    # 2026년 하반기
+
+file_2025 = find_file('_2025B_')     # 2025년 (25.09)
+file_2026A = find_file('_2026A_')    # 2026년 상반기 (26.03)
+file_2026B = find_file('_2026B_')    # 2026년 하반기 (26.09)
 
 LBL_25, LBL_A, LBL_B = '2025년', '2026년 상반기', '2026년 하반기'
 COLOR_25, COLOR_A, COLOR_B = '#1f77b4', '#00A699', '#8E44AD'
 
 custom_sort_order = ['팀리더', '일반관리', '영업기획/관리', '주택용 수요개발', '주택용 외 수요개발']
+
+# ---- 비교 기준 설정 ----
+labels = [LBL_25, LBL_A, LBL_B]
+PPL_BY_PERIOD = [12, 10, 10]          # 시점별 팀원 정원 (팀장 제외): 25.09=12명, 26.03=10명, 26.09=10명
+base_idx = 0 if cmp_25 else 1         # 비교 기준 인덱스
+BASE_LBL = labels[base_idx]           # 비교 기준 라벨
+BASE_TAG = "25.09" if cmp_25 else "26.03"
+BASE_PPL = PPL_BY_PERIOD[base_idx]
+HCOLS = ['2025년(h)', '2026년 상반기(h)', '2026년 하반기(h)']
+BASE_HCOL = HCOLS[base_idx]
+DIFF = f'증감(h)({BASE_TAG}→26.09)'   # 증감 컬럼명 (기준에 따라 변동)
 
 # 1번 섹션 그래프 공통 스타일
 FONT = dict(family="Pretendard, 'Noto Sans KR', 'Malgun Gothic', sans-serif", size=13, color="#334155")
@@ -123,22 +145,30 @@ def add_ref_line(fig, y, label=None):
                            text=label, showarrow=False, align="left",
                            font=dict(color=ACCENT_RED, size=12))
 
+
 if all([file_2025, file_2026A, file_2026B]):
     df_2025 = load_data(file_2025)
     df_2026A = load_data(file_2026A)
     df_2026B = load_data(file_2026B)
 
     dfs = [df_2025, df_2026A, df_2026B]
-    labels = [LBL_25, LBL_A, LBL_B]
+    df_base = dfs[base_idx]
 
     leader = [d[d['직무명'] == '팀리더']['수행시간'].sum() for d in dfs]
     staff = [d[d['직무명'] != '팀리더']['수행시간'].sum() for d in dfs]
     total = [l + s for l, s in zip(leader, staff)]
 
     std_hours = 1827                    # 1인당 표준근무가능시간(h)
-    CUR_PPL = 10                        # 현재 팀원 정원
+    CUR_PPL = PPL_BY_PERIOD[2]          # 현재(26.09) 팀원 정원
+    PPL_25 = PPL_BY_PERIOD[0]           # 25.09 당시 팀원 정원 (팀장 제외 12명)
     cap_hours = CUR_PPL * std_hours     # 현재 팀원 10명 기준 연간 가용시간
     req_ppl = [s / std_hours for s in staff]
+
+    if cmp_25:
+        st.success(
+            f"🔁 **비교 모드: 25.09 → 26.09**  |  팀원 {PPL_25}명(팀장 제외) → {CUR_PPL}명, "
+            f"필요 인원 {req_ppl[0]:.1f}명 → {req_ppl[2]:.1f}명"
+        )
 
     st.divider()
 
@@ -150,8 +180,8 @@ if all([file_2025, file_2026A, file_2026B]):
     st.error(f"""
 **[핵심 요약] 마케팅팀 실무 인력 운용 한계 도달 및 타이트한 T/O 증명**
 * **고정 인력:** 팀리더 1명 (연간 {leader[2]:,.0f}h 수행)은 고정 산정합니다.
-* 2026년 하반기 기준 실무진(팀원)이 감당해야 할 순수 총 과업시간은 **{staff[2]:,.0f}시간**입니다. (상반기 {staff[1]:,.0f}시간 대비 {staff[2] - staff[1]:+,.0f}시간)
-* 1인당 표준근무가능시간({std_hours:,.0f}시간)으로 환산 시, 해당 업무를 소화하기 위한 **실무진 적정 필요 인원은 {req_ppl[2]:.1f}명**입니다. (상반기 {req_ppl[1]:.1f}명)
+* 2026년 하반기 기준 실무진(팀원)이 감당해야 할 순수 총 과업시간은 **{staff[2]:,.0f}시간**입니다. ({BASE_TAG} {staff[base_idx]:,.0f}시간 대비 {staff[2] - staff[base_idx]:+,.0f}시간)
+* 1인당 표준근무가능시간({std_hours:,.0f}시간)으로 환산 시, 해당 업무를 소화하기 위한 **실무진 적정 필요 인원은 {req_ppl[2]:.1f}명**입니다. ({BASE_TAG} {req_ppl[base_idx]:.1f}명)
 * 현재 팀원 배정({CUR_PPL}명)은 필요 인원 대비 **{req_ppl[2] - CUR_PPL:.1f}명 부족**한 상태이며, 웹앱 자동화 같은 극한의 효율화 없이는 정상적인 업무 수행이 불가능한 수치입니다.
 """)
 
@@ -191,7 +221,7 @@ if all([file_2025, file_2026A, file_2026B]):
             stack_list.append(('팀리더', leader, JOB_COLORS['팀리더']))   # 팀리더는 맨 위
             for name, vals, color in stack_list:
                 add_stack(name, vals, color)
-                job_notes.append((cum_b + vals[2] / 2, vals[2] - vals[1]))   # 하반기 - 상반기
+                job_notes.append((cum_b + vals[2] / 2, vals[2] - vals[base_idx]))   # 하반기 - 비교기준
                 cum_b += vals[2]
         else:
             add_stack('팀원(실무)', staff, COLOR_A)
@@ -216,7 +246,7 @@ if all([file_2025, file_2026A, file_2026B]):
         fig_bar.update_yaxes(range=[0, max(total + [cap_hours]) * 1.12], tickformat=",", title_text="연간 수행시간 (h)")
 
         if show_job:
-            # 점선 라벨은 생략(범례에 표시)하고, 오른쪽 여백에 '상반기 대비 직무별 증감'을 숫자로만 표시
+            # 점선 라벨은 생략(범례에 표시)하고, 오른쪽 여백에 '비교기준 대비 직무별 증감'을 숫자로만 표시
             add_ref_line(fig_bar, cap_hours)
             fig_bar.update_layout(margin=dict(t=90, b=50, l=60, r=110))
 
@@ -227,7 +257,7 @@ if all([file_2025, file_2026A, file_2026B]):
                 return "#2563EB" if v > 0 else ("#E11D48" if v < 0 else "#64748B")
 
             fig_bar.add_annotation(xref="paper", yref="paper", x=1.0, y=1.0, xanchor="left", yanchor="top", xshift=10,
-                                   text="<b>상반기 대비</b>", showarrow=False, font=dict(size=12, color="#64748B"))
+                                   text=f"<b>{BASE_TAG} 대비</b>", showarrow=False, font=dict(size=12, color="#64748B"))
             for y_mid, diff in job_notes:
                 fig_bar.add_annotation(xref="paper", yref="y", x=1.0, y=y_mid, xanchor="left", xshift=10,
                                        text=f"<b>{fmt_diff(diff)}</b>", showarrow=False,
@@ -250,10 +280,24 @@ if all([file_2025, file_2026A, file_2026B]):
             textfont=dict(size=15, color="#0F172A"),
             hovertemplate="%{x}<br>팀원 필요 %{y:.1f}명<extra></extra>"
         ))
+        # 현재 팀원 정원 (10명) - 전체 구간 점선
         add_ref_line(fig_line, CUR_PPL, f"현재 팀원 정원<br><b>{CUR_PPL}명</b>")
+
+        # ★ 2025년 기준 막대에만 25.09 당시 팀원 정원(12명) 점선 표기
+        fig_line.add_shape(
+            type="line", xref="x", yref="y",
+            x0=-0.42, x1=0.42, y0=PPL_25, y1=PPL_25,
+            line=dict(color=ACCENT_RED, dash="dash", width=3)
+        )
+        fig_line.add_annotation(
+            xref="x", yref="y", x=0, y=PPL_25, yshift=14,
+            text=f"<b>당시 팀원 정원 {PPL_25}명</b>", showarrow=False,
+            font=dict(color="white", size=12)
+        )
+
         style_fig(fig_line)
         fig_line.update_layout(bargap=0.4, showlegend=False)
-        fig_line.update_yaxes(range=[0, max(req_ppl + [CUR_PPL]) * 1.18], title_text="필요 인원 (명)")
+        fig_line.update_yaxes(range=[0, max(req_ppl + [CUR_PPL, PPL_25]) * 1.18], title_text="필요 인원 (명)")
         try:
             fig_line.update_layout(barcornerradius=8)   # 둥근 막대 (plotly 최신 버전)
         except Exception:
@@ -263,12 +307,12 @@ if all([file_2025, file_2026A, file_2026B]):
     st.divider()
 
     # =====================================================================
-    # 분석 2: ERRC 관점의 직무 변화 (2026 상반기 → 하반기, 책무별 증감 비교)
+    # 분석 2: ERRC 관점의 직무 변화 (비교기준 → 26.09, 책무별 증감 비교)
     # =====================================================================
-    st.subheader("🎯 2. ERRC 관점의 직무 변화 및 세부 과업 비교 (2026년 상반기 → 하반기)")
+    st.subheader(f"🎯 2. ERRC 관점의 직무 변화 및 세부 과업 비교 ({BASE_LBL} → 2026년 하반기)")
 
     st.markdown(
-        "2026년 상반기 대비 하반기 직무표를 비교하여, 조직 개편에 따라 업무가 "
+        f"{BASE_LBL} 대비 2026년 하반기 직무표를 비교하여, 조직 개편에 따라 업무가 "
         "<b>제거(E)/감소(R)</b>되거나 <b>증가(R)/창조(C)</b>된 내역을 책무 단위로 정리했습니다.",
         unsafe_allow_html=True
     )
@@ -281,26 +325,26 @@ if all([file_2025, file_2026A, file_2026B]):
         '2026년 상반기(h)': duty_2026A,
         '2026년 하반기(h)': duty_2026B
     }).fillna(0)
-    diff_df['증감(h)'] = diff_df['2026년 하반기(h)'] - diff_df['2026년 상반기(h)']   # 상반기 → 하반기
+    diff_df[DIFF] = diff_df['2026년 하반기(h)'] - diff_df[BASE_HCOL]   # 비교기준 → 하반기
 
-    # ERRC 자동 분류 (상반기 → 하반기)
-    a, b, d = diff_df['2026년 상반기(h)'], diff_df['2026년 하반기(h)'], diff_df['증감(h)']
-    elim = diff_df[(a > 0) & (b == 0)].sort_values('증감(h)')
-    create = diff_df[(a == 0) & (b > 0)].sort_values('증감(h)', ascending=False)
-    reduce_ = diff_df[(a > 0) & (b > 0) & (d < -0.5)].sort_values('증감(h)')
-    raise_ = diff_df[(a > 0) & (b > 0) & (d > 0.5)].sort_values('증감(h)', ascending=False)
+    # ERRC 자동 분류 (비교기준 → 하반기)
+    a, b, d = diff_df[BASE_HCOL], diff_df['2026년 하반기(h)'], diff_df[DIFF]
+    elim = diff_df[(a > 0) & (b == 0)].sort_values(DIFF)
+    create = diff_df[(a == 0) & (b > 0)].sort_values(DIFF, ascending=False)
+    reduce_ = diff_df[(a > 0) & (b > 0) & (d < -0.5)].sort_values(DIFF)
+    raise_ = diff_df[(a > 0) & (b > 0) & (d > 0.5)].sort_values(DIFF, ascending=False)
 
     def render_items(df_items, empty_msg="해당 없음"):
         if df_items.empty:
             st.markdown(f"• {empty_msg}")
             return
         for name, row in df_items.iterrows():
-            st.markdown(f"• {name} ({row['증감(h)']:+,.0f}h)")
+            st.markdown(f"• {name} ({row[DIFF]:+,.0f}h)")
 
     col_e, col_r, col_ra, col_c = st.columns(4)
 
     with col_e:
-        st.error("🗑️ **Eliminate (제거)**\n\n상반기 대비 하반기에 사라진 책무")
+        st.error(f"🗑️ **Eliminate (제거)**\n\n{BASE_TAG} 대비 26.09에 사라진 책무")
         render_items(elim)
 
     with col_r:
@@ -312,23 +356,32 @@ if all([file_2025, file_2026A, file_2026B]):
         render_items(raise_)
 
     with col_c:
-        st.info("💡 **Create (창조)**\n\n하반기에 새로 신설된 책무")
+        st.info(f"💡 **Create (창조)**\n\n{BASE_TAG} 이후 새로 신설된 책무")
         render_items(create)
 
-    # 과업 단위 변경 내역 (상반기 → 하반기)
-    with st.expander("🔍 과업 단위 세부 변경 내역 보기 (상반기 → 하반기)"):
-        task_a = df_2026A.groupby(['책무명', '과업명'])['수행시간'].sum().rename('상반기(h)')
-        task_b = df_2026B.groupby(['책무명', '과업명'])['수행시간'].sum().rename('하반기(h)')
+    # 과업 단위 변경 내역 (비교기준 → 하반기)
+    with st.expander(f"🔍 과업 단위 세부 변경 내역 보기 ({BASE_TAG} → 26.09)"):
+        task_a = df_base.groupby(['책무명', '과업명'])['수행시간'].sum().rename(f'{BASE_TAG}(h)')
+        task_b = df_2026B.groupby(['책무명', '과업명'])['수행시간'].sum().rename('26.09(h)')
         task_df = pd.concat([task_a, task_b], axis=1).fillna(0).reset_index()
-        task_df['증감(h)'] = task_df['하반기(h)'] - task_df['상반기(h)']
+        task_df['증감(h)'] = task_df['26.09(h)'] - task_df[f'{BASE_TAG}(h)']
         task_df = task_df[task_df['증감(h)'].abs() > 0.5].sort_values('증감(h)')
         if task_df.empty:
-            st.write("상반기 대비 변경된 과업이 없습니다.")
+            st.write(f"{BASE_TAG} 대비 변경된 과업이 없습니다.")
         else:
-            st.dataframe(task_df.style.format({'상반기(h)': '{:,.0f}', '하반기(h)': '{:,.0f}', '증감(h)': '{:+,.0f}'}),
+            st.dataframe(task_df.style.format({f'{BASE_TAG}(h)': '{:,.0f}', '26.09(h)': '{:,.0f}', '증감(h)': '{:+,.0f}'}),
                          hide_index=True, use_container_width=True)
 
-    st.info(f"""
+    if cmp_25:
+        st.info(f"""
+🚀 **[Conclusion & Action Plan] (25.09 → 26.09)**
+* **현황:** 25.09 팀원 {PPL_25}명(필요 {req_ppl[0]:.1f}명) 대비 현재 팀원 {CUR_PPL}명으로 운영 중이며, 필요 인원은 {req_ppl[2]:.1f}명으로 {req_ppl[2] - req_ppl[0]:+.1f}명 변동되었습니다.
+* **인력 변화:** 정원은 {CUR_PPL - PPL_25:+d}명 변동된 반면, 과업시간은 {staff[2] - staff[0]:+,.0f}h 변동되어 1인당 부담이 가중되었습니다. (정원 대비 필요 인원 부족: 25.09 {req_ppl[0] - PPL_25:+.1f}명 → 26.09 {req_ppl[2] - CUR_PPL:+.1f}명)
+* **극복 전략:** 방대한 분석/관리 업무를 데이터 분석 기반 파이썬 웹앱으로 자동화하여 극단적인 효율(Reduce)을 지속 달성합니다.
+* **향후 집중 방향:** 시스템으로 확보한 여력을 용도별 전문성 강화와 **'마케팅분석 고도화 & 시각화 결과 공유'** 등에 투입하여 비즈니스 임팩트를 높이겠습니다.
+""")
+    else:
+        st.info(f"""
 🚀 **[Conclusion & Action Plan]**
 * **현황:** 하반기에도 타이트한 실무 인원(실제 {CUR_PPL}명 vs 필요 {req_ppl[2]:.1f}명)으로 운영 중이며, 상반기({req_ppl[1]:.1f}명) 대비 필요 인원이 {req_ppl[2] - req_ppl[1]:+.1f}명 변동되었습니다.
 * **주요 원인:** 기획부팀 내 CS지원팀 업무 일부가 추가되었고, 마케팅부팀의 용도별 담당자가 통합에서 분리 체계로 전환되었습니다.
@@ -397,7 +450,6 @@ if all([file_2025, file_2026A, file_2026B]):
         '2025년(h)': '25년 수행시간',
         '2026년 상반기(h)': '26년 상반기 수행시간',
         '2026년 하반기(h)': '26년 하반기 수행시간',
-        '증감(h)': '증감(h)(상반기→하반기)'
     })
     agg = (agg.merge(job_map, on='책무명', how='left')
               .merge(stat_26, on='책무명', how='left')
@@ -415,7 +467,7 @@ if all([file_2025, file_2026A, file_2026B]):
     agg['직무명'] = pd.Categorical(agg['직무명'], categories=custom_sort_order + extra_jobs, ordered=True)
 
     cols = ['직무명', '책무명', '과업수', '25년 수행시간', '26년 상반기 수행시간', '26년 하반기 수행시간',
-            '증감(h)(상반기→하반기)', '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
+            DIFF, '업무량 구성비(%)', '중요도', '난이도', '숙련도', '업무등급']
 
     agg = agg[cols].sort_values(['직무명'], kind='stable')
 
@@ -426,7 +478,7 @@ if all([file_2025, file_2026A, file_2026B]):
         '25년 수행시간': agg['25년 수행시간'].sum(),
         '26년 상반기 수행시간': agg['26년 상반기 수행시간'].sum(),
         '26년 하반기 수행시간': agg['26년 하반기 수행시간'].sum(),
-        '증감(h)(상반기→하반기)': agg['증감(h)(상반기→하반기)'].sum(),
+        DIFF: agg[DIFF].sum(),
         '업무량 구성비(%)': 100.0,
         '중요도': None,
         '난이도': None,
@@ -453,10 +505,10 @@ if all([file_2025, file_2026A, file_2026B]):
     st.dataframe(agg.style.format({
         '과업수': '{:.0f}',
         '25년 수행시간': '{:,.0f}', '26년 상반기 수행시간': '{:,.0f}', '26년 하반기 수행시간': '{:,.0f}',
-        '증감(h)(상반기→하반기)': '{:,.0f}',
+        DIFF: '{:,.0f}',
         '업무량 구성비(%)': '{:.1f}',
         '중요도': '{:.1f}', '난이도': '{:.1f}', '숙련도': '{:.1f}'
-    }, na_rep="-").map(color_negative_red, subset=['증감(h)(상반기→하반기)']).apply(highlight_total, axis=1),
+    }, na_rep="-").map(color_negative_red, subset=[DIFF]).apply(highlight_total, axis=1),
         hide_index=True, use_container_width=True)
 
     st.divider()
@@ -470,7 +522,7 @@ if all([file_2025, file_2026A, file_2026B]):
     st.subheader("🏢 4. 기획부팀 · 마케팅부팀 분리 분석 (직무 기준)")
     st.markdown(
         "팀리더를 제외하고, 직무를 기준으로 **기획부팀**(영업기획/관리, 일반관리)과 **마케팅부팀**(주택용 수요개발, 주택용 외 수요개발)의 "
-        "과업시간과 적정 필요 인원을 나누어 비교합니다."
+        f"과업시간과 적정 필요 인원을 나누어 비교합니다. (증감 기준: {BASE_TAG} → 26.09)"
     )
 
     TEAM_JOBS = {
@@ -492,10 +544,10 @@ if all([file_2025, file_2026A, file_2026B]):
             f'{LBL_25} 수행시간(h)': hrs[0],
             f'{LBL_A} 수행시간(h)': hrs[1],
             f'{LBL_B} 수행시간(h)': hrs[2],
-            '증감(h)(상반기→하반기)': hrs[2] - hrs[1],
-            f'{LBL_A} 필요 인원(명)': hrs[1] / std_hours,
+            DIFF: hrs[2] - hrs[base_idx],
+            f'{BASE_LBL} 필요 인원(명)': hrs[base_idx] / std_hours,
             f'{LBL_B} 필요 인원(명)': hrs[2] / std_hours,
-            '필요 인원 증감(명)': (hrs[2] - hrs[1]) / std_hours,
+            '필요 인원 증감(명)': (hrs[2] - hrs[base_idx]) / std_hours,
         })
     summary_df = pd.DataFrame(summary_rows)
 
@@ -505,11 +557,11 @@ if all([file_2025, file_2026A, file_2026B]):
             f'{LBL_25} 수행시간(h)': '{:,.0f}',
             f'{LBL_A} 수행시간(h)': '{:,.0f}',
             f'{LBL_B} 수행시간(h)': '{:,.0f}',
-            '증감(h)(상반기→하반기)': '{:+,.0f}',
-            f'{LBL_A} 필요 인원(명)': '{:.1f}',
+            DIFF: '{:+,.0f}',
+            f'{BASE_LBL} 필요 인원(명)': '{:.1f}',
             f'{LBL_B} 필요 인원(명)': '{:.1f}',
             '필요 인원 증감(명)': '{:+.1f}',
-        }).map(color_negative_red, subset=['증감(h)(상반기→하반기)', '필요 인원 증감(명)']),
+        }).map(color_negative_red, subset=[DIFF, '필요 인원 증감(명)']),
         hide_index=True, use_container_width=True
     )
 
@@ -520,12 +572,12 @@ if all([file_2025, file_2026A, file_2026B]):
             for d, lbl in zip(dfs, labels)
         ]
         t = pd.concat(parts, axis=1).fillna(0).reset_index()
-        t['증감(h)(상반기→하반기)'] = t[LBL_B] - t[LBL_A]
+        t[DIFF] = t[LBL_B] - t[BASE_LBL]
         t['직무명'] = pd.Categorical(t['직무명'], categories=jobs, ordered=True)
         t = t.sort_values(['직무명', LBL_B], ascending=[True, False], kind='stable')
         t['직무명'] = t['직무명'].astype(str)
         total = {'직무명': '합계', '책무명': '-'}
-        for c in [LBL_25, LBL_A, LBL_B, '증감(h)(상반기→하반기)']:
+        for c in [LBL_25, LBL_A, LBL_B, DIFF]:
             total[c] = t[c].sum()
         return pd.concat([t, pd.DataFrame([total])], ignore_index=True)
 
@@ -543,10 +595,10 @@ if all([file_2025, file_2026A, file_2026B]):
             hrs = [team_hours(d, jobs) for d in dfs]
             m1, m2, m3 = st.columns(3)
             m1.metric(f"{LBL_B} 수행시간", f"{hrs[2]:,.0f}h",
-                      delta=f"{hrs[2] - hrs[1]:+,.0f}h (상반기 대비)", delta_color="off")
+                      delta=f"{hrs[2] - hrs[base_idx]:+,.0f}h ({BASE_TAG} 대비)", delta_color="off")
             m2.metric(f"{LBL_B} 필요 인원", f"{hrs[2] / std_hours:.1f}명",
-                      delta=f"{(hrs[2] - hrs[1]) / std_hours:+.1f}명 (상반기 대비)", delta_color="off")
-            m3.metric(f"{LBL_A} 필요 인원", f"{hrs[1] / std_hours:.1f}명")
+                      delta=f"{(hrs[2] - hrs[base_idx]) / std_hours:+.1f}명 ({BASE_TAG} 대비)", delta_color="off")
+            m3.metric(f"{BASE_LBL} 필요 인원", f"{hrs[base_idx] / std_hours:.1f}명")
 
             # 직무별 누적 막대
             fig_team = go.Figure()
@@ -575,8 +627,8 @@ if all([file_2025, file_2026A, file_2026B]):
             st.dataframe(
                 t.style.format({
                     LBL_25: '{:,.0f}', LBL_A: '{:,.0f}', LBL_B: '{:,.0f}',
-                    '증감(h)(상반기→하반기)': '{:+,.0f}',
-                }).map(color_negative_red, subset=['증감(h)(상반기→하반기)']).apply(highlight_total_row, axis=1),
+                    DIFF: '{:+,.0f}',
+                }).map(color_negative_red, subset=[DIFF]).apply(highlight_total_row, axis=1),
                 hide_index=True, use_container_width=True
             )
 
