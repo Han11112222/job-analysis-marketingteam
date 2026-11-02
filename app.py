@@ -657,29 +657,14 @@ if all([file_2025, file_2026A, file_2026B]):
             fig_team = go.Figure()
             for job in jobs:
                 vals = [d[d['직무명'] == job]['수행시간'].sum() for d in dfs]
-                # 세부보기: 해당 직무 안의 지정 과업 시간을 따로 분리
-                tvals = [d[(d['직무명'] == job) & is_task(d['과업명'])]['수행시간'].sum() for d in dfs]
-                split = show_detail and sum(tvals) > 0
-                main_vals = [v - t for v, t in zip(vals, tvals)] if split else vals
                 fig_team.add_trace(go.Bar(
-                    name=job, x=labels, y=main_vals, marker_color=JOB_COLORS.get(job, '#64748B'),
+                    name=job, x=labels, y=vals, marker_color=JOB_COLORS.get(job, '#64748B'),
                     marker_line=dict(color="white", width=1.5),
-                    text=[f"{v:,.0f}h" if v > 0 else "" for v in main_vals],
+                    text=[f"{v:,.0f}h" if v > 0 else "" for v in vals],
                     textposition="inside", insidetextanchor="middle",
                     textfont=dict(size=12, color="white"),
                     hovertemplate="%{x}<br>" + job + ": %{y:,.0f}h<extra></extra>"
                 ))
-                if split:
-                    fig_team.add_trace(go.Bar(
-                        name=f"└ {DETAIL_TASK}", x=labels, y=tvals,
-                        marker=dict(color=JOB_COLORS.get(job, '#64748B'),
-                                    pattern=dict(shape="/", fgcolor="rgba(255,255,255,0.65)", size=7, solidity=0.35),
-                                    line=dict(color=ACCENT_RED, width=2)),
-                        text=[f"<b>{v:,.0f}h</b>" if v > 0 else "" for v in tvals],
-                        textposition="inside", insidetextanchor="middle",
-                        textfont=dict(size=12, color="white"),
-                        hovertemplate="%{x}<br>" + DETAIL_TASK + ": %{y:,.0f}h<extra></extra>"
-                    ))
             fig_team.add_trace(go.Scatter(
                 x=labels, y=hrs, mode="text", showlegend=False, hoverinfo="skip",
                 text=[f"<b>{v:,.0f}h</b>" for v in hrs], textposition="top center",
@@ -709,6 +694,20 @@ if all([file_2025, file_2026A, file_2026B]):
                     fig_team.add_annotation(xref="x", yref="y", x=(s + e) / 2, y=y, yshift=12,
                                             text=f"<b>{p}명 기준 {y:,.0f}h</b>", showarrow=False,
                                             font=dict(color="white", size=12))
+
+            # ★ 세부보기: 지정 과업 시간을 별도 점선(시점별 막대를 잇는 추세선)으로 표기
+            th_line = [d[d['직무명'].isin(jobs) & is_task(d['과업명'])]['수행시간'].sum() for d in dfs]
+            if show_detail and sum(th_line) > 0:
+                fig_team.add_trace(go.Scatter(
+                    x=labels, y=th_line, mode="lines+markers+text",
+                    name=f"{DETAIL_TASK}",
+                    line=dict(color="#0F172A", dash="dot", width=3),
+                    marker=dict(size=10, color="#0F172A", line=dict(color="white", width=2)),
+                    text=[f"<b>{v:,.0f}h</b>" for v in th_line], textposition="top center",
+                    textfont=dict(size=13, color="#0F172A"),
+                    cliponaxis=False,
+                    hovertemplate="%{x}<br>" + DETAIL_TASK + ": %{y:,.0f}h<extra></extra>"
+                ))
 
             fig_team.update_yaxes(range=[0, max(hrs + caps + [1]) * 1.15], tickformat=",", title_text="연간 수행시간 (h)")
             st.plotly_chart(fig_team, use_container_width=True, config=PLOT_CFG)
