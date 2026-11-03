@@ -556,6 +556,9 @@ if all([file_2025, file_2026A, file_2026B]):
     DETAIL_DUTY = '마케팅전략기획'                       # 부연설명할 책무
     DETAIL_TASK = '업무프로세스 개선 과제 발굴 및 기획'   # 부연설명할 과업
     _task_key = DETAIL_TASK.replace(' ', '')
+    # ※ 엑셀 직무표에는 이 과업의 수행시간 칸이 비어 있어 데이터로 합산되지 않으므로 직접 입력합니다.
+    DETAIL_TEAM = '기획부팀'                  # 점선을 표시할 팀 그래프
+    DETAIL_HOURS = [460, 560, 600]           # [2025년, 2026년 상반기, 2026년 하반기] 수행시간(h)
 
     def is_task(series):
         """과업명 공백 차이와 무관하게 대상 과업 여부 판별"""
@@ -689,7 +692,7 @@ if all([file_2025, file_2026A, file_2026B]):
                                             font=dict(color="white", size=12))
 
             # ★ 세부보기: 지정 과업 시간을 별도 점선(시점별 막대를 잇는 추세선)으로 표기
-            th_line = [d[d['직무명'].isin(jobs) & is_task(d['과업명'])]['수행시간'].sum() for d in dfs]
+            th_line = DETAIL_HOURS if team == DETAIL_TEAM else [0, 0, 0]
             if show_detail and sum(th_line) > 0:
                 fig_team.add_trace(go.Scatter(
                     x=labels, y=th_line, mode="lines+markers+text",
@@ -707,7 +710,7 @@ if all([file_2025, file_2026A, file_2026B]):
 
             # 세부보기: 지정 과업의 연도별 추이 요약
             if show_detail:
-                th = [d[d['직무명'].isin(jobs) & is_task(d['과업명'])]['수행시간'].sum() for d in dfs]
+                th = DETAIL_HOURS if team == DETAIL_TEAM else [0, 0, 0]
                 if sum(th) > 0:
                     gr = (th[2] / th[0] - 1) * 100 if th[0] > 0 else 0
                     st.info(
@@ -734,6 +737,10 @@ if all([file_2025, file_2026A, file_2026B]):
             for d, lbl in zip(dfs, labels)
         ]
         dt = pd.concat(parts, axis=1).fillna(0).reset_index()
+        # 엑셀에 시간이 비어 있는 대상 과업은 직접 입력한 값으로 행을 추가
+        if not dt['과업명'].apply(lambda x: _task_key in str(x).replace(' ', '')).any():
+            dt = pd.concat([dt, pd.DataFrame([{'과업명': DETAIL_TASK, LBL_25: DETAIL_HOURS[0],
+                                               LBL_A: DETAIL_HOURS[1], LBL_B: DETAIL_HOURS[2]}])], ignore_index=True)
         if dt.empty:
             st.write(f"'{DETAIL_DUTY}' 책무를 찾지 못했습니다.")
         else:
