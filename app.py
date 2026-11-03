@@ -556,7 +556,7 @@ if all([file_2025, file_2026A, file_2026B]):
     DETAIL_DUTY = '마케팅전략기획'                       # 부연설명할 책무
     DETAIL_TASK = '업무프로세스 개선 과제 발굴 및 기획'   # 부연설명할 과업
     _task_key = DETAIL_TASK.replace(' ', '')
-    # ※ 엑셀 직무표에는 이 과업의 수행시간 칸이 비어 있어 데이터로 합산되지 않으므로 직접 입력합니다.
+    # ※ 이 과업 시간은 엑셀에 없는, 설명용으로 직접 입력하는 값입니다.
     DETAIL_TEAM = '기획부팀'                  # 점선을 표시할 팀 그래프
     DETAIL_HOURS = [460, 560, 600]           # [2025년, 2026년 상반기, 2026년 하반기] 수행시간(h)
 
@@ -564,10 +564,6 @@ if all([file_2025, file_2026A, file_2026B]):
         """과업명 공백 차이와 무관하게 대상 과업 여부 판별"""
         return series.astype(str).str.replace(' ', '', regex=False).str.contains(_task_key, regex=False)
 
-    _sp, _tg = st.columns([5, 1])
-    with _tg:
-        show_detail = st.toggle("세부보기", key="show_detail",
-                                help=f"켜면 '{DETAIL_DUTY}' 책무의 '{DETAIL_TASK}' 과업 시간을 막대 안에 따로 표시하고 과업 상세표를 보여줍니다.")
 
     TEAM_JOBS = {
         '기획부팀': ['영업기획/관리', '일반관리'],
@@ -649,6 +645,16 @@ if all([file_2025, file_2026A, file_2026B]):
                       delta=f"{(hrs[2] - hrs[base_idx]) / std_hours:+.1f}명 ({BASE_TAG} 대비)", delta_color="off")
             m3.metric(f"{BASE_LBL} 필요 인원", f"{hrs[base_idx] / std_hours:.1f}명")
 
+            # ★ 기획부팀 그래프 우측 상단: '특이사항' 토글 (켜면 설명용 과업 시간을 점선으로 표시)
+            show_detail = False
+            if team == DETAIL_TEAM:
+                _l, _r = st.columns([3, 1])
+                with _r:
+                    show_detail = st.toggle("특이사항", key="show_detail",
+                                            help=f"켜면 '{DETAIL_TASK}' 시간(설명용 수기 입력값)을 점선으로 표시합니다.")
+            else:
+                st.markdown("<div style='height:46px'></div>", unsafe_allow_html=True)
+
             # 직무별 누적 막대
             fig_team = go.Figure()
             for job in jobs:
@@ -726,36 +732,6 @@ if all([file_2025, file_2026A, file_2026B]):
                     LBL_25: '{:,.0f}', LBL_A: '{:,.0f}', LBL_B: '{:,.0f}',
                     DIFF: '{:+,.0f}',
                 }).map(color_negative_red, subset=[DIFF]).apply(highlight_total_row, axis=1),
-                hide_index=True, use_container_width=True
-            )
-
-    # 세부보기: 지정 책무 내 과업별 수행시간 상세표
-    if show_detail:
-        st.markdown(f"#### 🔍 세부보기 · [{DETAIL_DUTY}] 책무 과업별 수행시간")
-        parts = [
-            d[d['책무명'] == DETAIL_DUTY].groupby('과업명', sort=False)['수행시간'].sum().rename(lbl)
-            for d, lbl in zip(dfs, labels)
-        ]
-        dt = pd.concat(parts, axis=1).fillna(0).reset_index()
-        # 엑셀에 시간이 비어 있는 대상 과업은 직접 입력한 값으로 행을 추가
-        if not dt['과업명'].apply(lambda x: _task_key in str(x).replace(' ', '')).any():
-            dt = pd.concat([dt, pd.DataFrame([{'과업명': DETAIL_TASK, LBL_25: DETAIL_HOURS[0],
-                                               LBL_A: DETAIL_HOURS[1], LBL_B: DETAIL_HOURS[2]}])], ignore_index=True)
-        if dt.empty:
-            st.write(f"'{DETAIL_DUTY}' 책무를 찾지 못했습니다.")
-        else:
-            dt[DIFF] = dt[LBL_B] - dt[BASE_LBL]
-            dt['★'] = dt['과업명'].apply(lambda x: '★' if _task_key in str(x).replace(' ', '') else '')
-            dt = dt[['★', '과업명'] + labels + [DIFF]]
-
-            def highlight_task(row):
-                if row['★'] == '★':
-                    return ['background-color: #FEF08A; font-weight: bold'] * len(row)
-                return [''] * len(row)
-
-            st.dataframe(
-                dt.style.format({LBL_25: '{:,.0f}', LBL_A: '{:,.0f}', LBL_B: '{:,.0f}', DIFF: '{:+,.0f}'})
-                  .map(color_negative_red, subset=[DIFF]).apply(highlight_task, axis=1),
                 hide_index=True, use_container_width=True
             )
 
